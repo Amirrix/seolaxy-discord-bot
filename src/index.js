@@ -6,6 +6,9 @@ const {
 } = require("discord.js");
 require("dotenv").config();
 
+// Import command deployment function
+const { deployCommands } = require("../scripts/deploy-commands");
+
 // Create a new client instance
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
@@ -153,6 +156,11 @@ async function startBot() {
 
     // Validate configuration
     validateConfig();
+
+    // Auto-deploy commands on startup
+    log.info("📋 Auto-deploying slash commands...");
+    await deployCommands();
+    log.info("✅ Commands deployed successfully!");
 
     // Login to Discord
     await client.login(config.token);

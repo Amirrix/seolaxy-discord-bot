@@ -49,7 +49,11 @@ async function deployCommands() {
     });
   } catch (error) {
     console.error("❌ Error deploying commands:", error);
-    process.exit(1);
+    // Only exit if this script is run directly, not when imported
+    if (require.main === module) {
+      process.exit(1);
+    }
+    throw error; // Re-throw the error so calling code can handle it
   }
 }
 

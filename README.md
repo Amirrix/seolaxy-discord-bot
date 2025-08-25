@@ -152,26 +152,26 @@ LOG_LEVEL=info
 
 ## 💻 Local Development
 
-1. **Deploy commands**:
+1. **Start the bot** (commands auto-deploy on startup):
    ```bash
-   npm run deploy
+   npm run dev    # Development mode with auto-restart
+   # or
+   npm start      # Production mode
    ```
 
-2. **Start the bot in development mode**:
-   ```bash
-   npm run dev
-   ```
+   **✨ Note**: Slash commands are automatically deployed when the bot starts, so you don't need to run `npm run deploy` separately!
 
-3. **Start the bot in production mode**:
+2. **Manual command deployment** (optional):
    ```bash
-   npm start
+   npm run deploy   # Only needed if you want to deploy commands without starting the bot
    ```
 
 ### Available Scripts
 
-- `npm start` - Start the bot in production mode
-- `npm run dev` - Start the bot with auto-restart on file changes
-- `npm run deploy` - Deploy slash commands to Discord
+- `npm start` - Start the bot in production mode (auto-deploys commands)
+- `npm run dev` - Start the bot with auto-restart on file changes (auto-deploys commands)
+- `npm run deploy` - Manually deploy slash commands to Discord (optional)
+- `npm run setup` - Interactive environment setup helper
 - `npm run lint` - Check code style
 - `npm run lint:fix` - Fix code style issues automatically
 
