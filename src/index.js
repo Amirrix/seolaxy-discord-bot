@@ -38,6 +38,7 @@ const ROLES = {
   ENGLISH: "1409879924180783225",
   BOSNIAN_CROATIAN_SERBIAN: "1409880194424115260",
   MEMBER: "1409879830408859809",
+  UNVERIFIED: "1409929646610583652",
 };
 
 // Channel IDs
@@ -421,7 +422,16 @@ async function handleJoinModal(interaction) {
     const isInvoiceValid = await mockApiCall(invoiceNumber);
     if (isInvoiceValid) {
       const memberRole = guild.roles.cache.get(ROLES.MEMBER);
+      const unverifiedRole = guild.roles.cache.get(ROLES.UNVERIFIED);
+
       if (memberRole) {
+        // Remove unverified role if user has it
+        if (unverifiedRole && member.roles.cache.has(ROLES.UNVERIFIED)) {
+          await member.roles.remove(unverifiedRole);
+          log.info(`Removed unverified role from ${interaction.user.tag}`);
+        }
+
+        // Add member role
         await member.roles.add(memberRole);
         log.info(`Assigned member role to ${interaction.user.tag}`);
       }
