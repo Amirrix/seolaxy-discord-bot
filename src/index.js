@@ -40,8 +40,9 @@ const ROLES = {
   MEMBER: "1409879830408859809",
 };
 
-// Channel ID where the join message should be sent
+// Channel IDs
 const JOIN_CHANNEL_ID = "1409606552402268180";
+const LANGUAGE_CHANNEL_ID = "1409926327934652517";
 
 // Logging utility
 const log = {
@@ -84,17 +85,28 @@ client.once(Events.ClientReady, async (readyClient) => {
     type: "WATCHING",
   });
 
-  // Send messages to the specified channel
+  // Send messages to their respective channels
   try {
-    const joinChannel = await client.channels.fetch(JOIN_CHANNEL_ID);
-    if (joinChannel) {
-      await sendLanguageSelectionMessage(joinChannel);
-      await sendJoinMessage(joinChannel);
+    // Send language selection message to language channel
+    const languageChannel = await client.channels.fetch(LANGUAGE_CHANNEL_ID);
+    if (languageChannel) {
+      await sendLanguageSelectionMessage(languageChannel);
       log.info(
-        `✅ Language selection and join messages sent to channel #${joinChannel.name}`
+        `✅ Language selection message sent to channel #${languageChannel.name}`
       );
     } else {
-      log.error(`❌ Could not find channel with ID: ${JOIN_CHANNEL_ID}`);
+      log.error(
+        `❌ Could not find language channel with ID: ${LANGUAGE_CHANNEL_ID}`
+      );
+    }
+
+    // Send join message to join channel
+    const joinChannel = await client.channels.fetch(JOIN_CHANNEL_ID);
+    if (joinChannel) {
+      await sendJoinMessage(joinChannel);
+      log.info(`✅ Join message sent to channel #${joinChannel.name}`);
+    } else {
+      log.error(`❌ Could not find join channel with ID: ${JOIN_CHANNEL_ID}`);
     }
   } catch (error) {
     log.error(`❌ Error sending messages: ${error.message}`);
