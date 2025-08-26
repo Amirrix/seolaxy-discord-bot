@@ -38,11 +38,11 @@ const ROLES = {
   // Language roles (assigned during onboarding)
   ENGLISH: "1409879924180783225",
   BOSNIAN_CROATIAN_SERBIAN: "1409880194424115260",
-  
+
   // Member roles (assigned after successful verification)
   ENGLISH_MEMBER: "1409936166840696882",
   BOSNIAN_CROATIAN_SERBIAN_MEMBER: "1409936218900267090",
-  
+
   // Other roles
   MEMBER: "1409879830408859809", // Legacy member role
   UNVERIFIED: "1409929646610583652",
@@ -292,33 +292,37 @@ async function handleJoinModal(interaction) {
     // 2. Validate invoice and assign language-specific member role
     const isInvoiceValid = await mockApiCall(invoiceNumber);
     let memberRoleName; // Initialize outside to use in confirmation message
-    
+
     if (isInvoiceValid) {
       const unverifiedRole = guild.roles.cache.get(ROLES.UNVERIFIED);
-      
+
       // Determine which language role the user has and assign appropriate member role
       let memberRole;
-      
+
       if (member.roles.cache.has(ROLES.ENGLISH)) {
         memberRole = guild.roles.cache.get(ROLES.ENGLISH_MEMBER);
         memberRoleName = "English Member";
       } else if (member.roles.cache.has(ROLES.BOSNIAN_CROATIAN_SERBIAN)) {
-        memberRole = guild.roles.cache.get(ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER);
+        memberRole = guild.roles.cache.get(
+          ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER
+        );
         memberRoleName = "Bosnian/Croatian/Serbian Member";
       } else {
         // Fallback to legacy member role if no language role found
         memberRole = guild.roles.cache.get(ROLES.MEMBER);
         memberRoleName = "Member (No language role detected)";
-        log.warn(`User ${interaction.user.tag} has no language role, using legacy member role`);
+        log.warn(
+          `User ${interaction.user.tag} has no language role, using legacy member role`
+        );
       }
-      
+
       if (memberRole) {
         // Remove unverified role if user has it
         if (unverifiedRole && member.roles.cache.has(ROLES.UNVERIFIED)) {
           await member.roles.remove(unverifiedRole);
           log.info(`Removed unverified role from ${interaction.user.tag}`);
         }
-        
+
         // Add appropriate member role
         await member.roles.add(memberRole);
         log.info(`Assigned ${memberRoleName} role to ${interaction.user.tag}`);
@@ -330,9 +334,11 @@ async function handleJoinModal(interaction) {
     // 4. Send confirmation message
     let memberStatusText = "❌ Invoice validation failed";
     if (isInvoiceValid) {
-      memberStatusText = memberRoleName ? `✅ Verified - ${memberRoleName}` : "✅ Verified";
+      memberStatusText = memberRoleName
+        ? `✅ Verified - ${memberRoleName}`
+        : "✅ Verified";
     }
-    
+
     const confirmEmbed = new EmbedBuilder()
       .setTitle("✅ Registration Successful!")
       .setDescription(
