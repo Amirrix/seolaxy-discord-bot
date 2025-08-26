@@ -35,15 +35,21 @@ const config = {
 
 // Role IDs for language and member roles
 const ROLES = {
+  // Language roles (assigned during onboarding)
   ENGLISH: "1409879924180783225",
   BOSNIAN_CROATIAN_SERBIAN: "1409880194424115260",
-  MEMBER: "1409879830408859809",
+  
+  // Member roles (assigned after successful verification)
+  ENGLISH_MEMBER: "1409936166840696882",
+  BOSNIAN_CROATIAN_SERBIAN_MEMBER: "1409936218900267090",
+  
+  // Other roles
+  MEMBER: "1409879830408859809", // Legacy member role
   UNVERIFIED: "1409929646610583652",
 };
 
-// Channel IDs
+// Channel ID where the join message should be sent
 const JOIN_CHANNEL_ID = "1409606552402268180";
-const LANGUAGE_CHANNEL_ID = "1409926327934652517";
 
 // Logging utility
 const log = {
@@ -86,31 +92,17 @@ client.once(Events.ClientReady, async (readyClient) => {
     type: "WATCHING",
   });
 
-  // Send messages to their respective channels
+  // Send join message to the specified channel
   try {
-    // Send language selection message to language channel
-    const languageChannel = await client.channels.fetch(LANGUAGE_CHANNEL_ID);
-    if (languageChannel) {
-      await sendLanguageSelectionMessage(languageChannel);
-      log.info(
-        `✅ Language selection message sent to channel #${languageChannel.name}`
-      );
-    } else {
-      log.error(
-        `❌ Could not find language channel with ID: ${LANGUAGE_CHANNEL_ID}`
-      );
-    }
-
-    // Send join message to join channel
     const joinChannel = await client.channels.fetch(JOIN_CHANNEL_ID);
     if (joinChannel) {
       await sendJoinMessage(joinChannel);
       log.info(`✅ Join message sent to channel #${joinChannel.name}`);
     } else {
-      log.error(`❌ Could not find join channel with ID: ${JOIN_CHANNEL_ID}`);
+      log.error(`❌ Could not find channel with ID: ${JOIN_CHANNEL_ID}`);
     }
   } catch (error) {
-    log.error(`❌ Error sending messages: ${error.message}`);
+    log.error(`❌ Error sending join message: ${error.message}`);
   }
 });
 
@@ -138,10 +130,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       // Handle button interactions
       if (interaction.customId === "join_button") {
         await handleJoinButton(interaction);
-      } else if (interaction.customId === "english_button") {
-        await handleLanguageSelection(interaction, "english");
-      } else if (interaction.customId === "bcs_button") {
-        await handleLanguageSelection(interaction, "bcs");
       }
     } else if (interaction.isModalSubmit()) {
       // Handle modal form submissions
@@ -178,58 +166,13 @@ async function handleHelloCommand(interaction) {
   });
 }
 
-// Function to send language selection message to a channel
-async function sendLanguageSelectionMessage(channel) {
-  // Create the language selection embed
-  const embed = new EmbedBuilder()
-    .setTitle("🌍 Select Your Language")
-    .setDescription(
-      "To proceed and access our community, please select your preferred language by clicking one of the buttons below:"
-    )
-    .addFields(
-      {
-        name: "🇺🇸 English",
-        value: "Select if you prefer English",
-        inline: true,
-      },
-      {
-        name: "🇧🇦 Bosnian/Croatian/Serbian",
-        value: "Select if you prefer BCS languages",
-        inline: true,
-      }
-    )
-    .setColor(0x0099ff)
-    .setFooter({ text: "You must select a language to continue!" })
-    .setTimestamp();
-
-  // Create language selection buttons
-  const englishButton = new ButtonBuilder()
-    .setCustomId("english_button")
-    .setLabel("English")
-    .setEmoji("🇺🇸")
-    .setStyle(ButtonStyle.Primary);
-
-  const bcsButton = new ButtonBuilder()
-    .setCustomId("bcs_button")
-    .setLabel("Bosnian/Croatian/Serbian")
-    .setEmoji("🇧🇦")
-    .setStyle(ButtonStyle.Primary);
-
-  const row = new ActionRowBuilder().addComponents(englishButton, bcsButton);
-
-  await channel.send({
-    embeds: [embed],
-    components: [row],
-  });
-}
-
 // Function to send join message to a channel
 async function sendJoinMessage(channel) {
   // Create the embed
   const embed = new EmbedBuilder()
     .setTitle("🚀 Join Our Community!")
     .setDescription(
-      "Welcome! To join our community, you'll need to fill out a registration form with the following information:\n\n⚠️ **Important**: You must first select your language in <#1409926327934652517> before getting full access to the server!"
+      "Welcome! To join our community, you'll need to fill out a registration form with the following information:"
     )
     .addFields(
       { name: "📝 Required Information", value: "\u200B", inline: false },
@@ -316,78 +259,6 @@ async function handleJoinButton(interaction) {
   await interaction.showModal(modal);
 }
 
-async function handleLanguageSelection(interaction, language) {
-  await interaction.deferReply({ ephemeral: true });
-
-  try {
-    const guild = interaction.guild;
-    const member = interaction.member;
-
-    let roleId;
-    let languageName;
-
-    if (language === "english") {
-      roleId = ROLES.ENGLISH;
-      languageName = "English";
-    } else if (language === "bcs") {
-      roleId = ROLES.BOSNIAN_CROATIAN_SERBIAN;
-      languageName = "Bosnian/Croatian/Serbian";
-    }
-
-    const role = guild.roles.cache.get(roleId);
-    if (role) {
-      // Check if user already has this role
-      if (member.roles.cache.has(roleId)) {
-        await interaction.editReply({
-          content: `✅ You already have the ${languageName} role!`,
-        });
-        return;
-      }
-
-      // Remove other language roles first (if any)
-      const otherLanguageRoles = [
-        ROLES.ENGLISH,
-        ROLES.BOSNIAN_CROATIAN_SERBIAN,
-      ].filter((id) => id !== roleId);
-      for (const otherRoleId of otherLanguageRoles) {
-        if (member.roles.cache.has(otherRoleId)) {
-          const otherRole = guild.roles.cache.get(otherRoleId);
-          if (otherRole) {
-            await member.roles.remove(otherRole);
-            log.info(
-              `Removed ${otherRole.name} role from ${interaction.user.tag}`
-            );
-          }
-        }
-      }
-
-      // Add the selected language role
-      await member.roles.add(role);
-      log.info(`Assigned ${languageName} role to ${interaction.user.tag}`);
-
-      const successEmbed = new EmbedBuilder()
-        .setTitle("✅ Language Selected!")
-        .setDescription(`You have been assigned the **${languageName}** role.`)
-        .setColor(0x00ff00)
-        .setTimestamp();
-
-      await interaction.editReply({
-        embeds: [successEmbed],
-      });
-    } else {
-      await interaction.editReply({
-        content: "❌ Language role not found. Please contact an administrator.",
-      });
-    }
-  } catch (error) {
-    log.error(`Error assigning language role: ${error.message}`);
-    await interaction.editReply({
-      content:
-        "❌ There was an error assigning your language role. Please try again or contact an administrator.",
-    });
-  }
-}
-
 async function handleJoinModal(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
@@ -418,26 +289,50 @@ async function handleJoinModal(interaction) {
       );
     }
 
-    // 2. Validate invoice and assign member role
+    // 2. Validate invoice and assign language-specific member role
     const isInvoiceValid = await mockApiCall(invoiceNumber);
+    let memberRoleName; // Initialize outside to use in confirmation message
+    
     if (isInvoiceValid) {
-      const memberRole = guild.roles.cache.get(ROLES.MEMBER);
       const unverifiedRole = guild.roles.cache.get(ROLES.UNVERIFIED);
-
+      
+      // Determine which language role the user has and assign appropriate member role
+      let memberRole;
+      
+      if (member.roles.cache.has(ROLES.ENGLISH)) {
+        memberRole = guild.roles.cache.get(ROLES.ENGLISH_MEMBER);
+        memberRoleName = "English Member";
+      } else if (member.roles.cache.has(ROLES.BOSNIAN_CROATIAN_SERBIAN)) {
+        memberRole = guild.roles.cache.get(ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER);
+        memberRoleName = "Bosnian/Croatian/Serbian Member";
+      } else {
+        // Fallback to legacy member role if no language role found
+        memberRole = guild.roles.cache.get(ROLES.MEMBER);
+        memberRoleName = "Member (No language role detected)";
+        log.warn(`User ${interaction.user.tag} has no language role, using legacy member role`);
+      }
+      
       if (memberRole) {
         // Remove unverified role if user has it
         if (unverifiedRole && member.roles.cache.has(ROLES.UNVERIFIED)) {
           await member.roles.remove(unverifiedRole);
           log.info(`Removed unverified role from ${interaction.user.tag}`);
         }
-
-        // Add member role
+        
+        // Add appropriate member role
         await member.roles.add(memberRole);
-        log.info(`Assigned member role to ${interaction.user.tag}`);
+        log.info(`Assigned ${memberRoleName} role to ${interaction.user.tag}`);
+      } else {
+        log.error(`Could not find member role for ${interaction.user.tag}`);
       }
     }
 
     // 4. Send confirmation message
+    let memberStatusText = "❌ Invoice validation failed";
+    if (isInvoiceValid) {
+      memberStatusText = memberRoleName ? `✅ Verified - ${memberRoleName}` : "✅ Verified";
+    }
+    
     const confirmEmbed = new EmbedBuilder()
       .setTitle("✅ Registration Successful!")
       .setDescription(
@@ -447,9 +342,7 @@ async function handleJoinModal(interaction) {
         { name: "Nickname", value: newNickname, inline: true },
         {
           name: "Member Status",
-          value: isInvoiceValid
-            ? "✅ Verified"
-            : "❌ Invoice validation failed",
+          value: memberStatusText,
           inline: true,
         }
       )
