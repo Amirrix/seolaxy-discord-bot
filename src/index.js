@@ -33,8 +33,10 @@ const config = {
   logLevel: process.env.LOG_LEVEL || "info",
 };
 
-// Role IDs for member role
+// Role IDs for language and member roles
 const ROLES = {
+  ENGLISH: "1409879924180783225",
+  BOSNIAN_CROATIAN_SERBIAN: "1409880194424115260",
   MEMBER: "1409879830408859809",
 };
 
@@ -82,17 +84,20 @@ client.once(Events.ClientReady, async (readyClient) => {
     type: "WATCHING",
   });
 
-  // Send join message to the specified channel
+  // Send messages to the specified channel
   try {
     const joinChannel = await client.channels.fetch(JOIN_CHANNEL_ID);
     if (joinChannel) {
+      await sendLanguageSelectionMessage(joinChannel);
       await sendJoinMessage(joinChannel);
-      log.info(`✅ Join message sent to channel #${joinChannel.name}`);
+      log.info(
+        `✅ Language selection and join messages sent to channel #${joinChannel.name}`
+      );
     } else {
       log.error(`❌ Could not find channel with ID: ${JOIN_CHANNEL_ID}`);
     }
   } catch (error) {
-    log.error(`❌ Error sending join message: ${error.message}`);
+    log.error(`❌ Error sending messages: ${error.message}`);
   }
 });
 
@@ -120,6 +125,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       // Handle button interactions
       if (interaction.customId === "join_button") {
         await handleJoinButton(interaction);
+      } else if (interaction.customId === "english_button") {
+        await handleLanguageSelection(interaction, "english");
+      } else if (interaction.customId === "bcs_button") {
+        await handleLanguageSelection(interaction, "bcs");
       }
     } else if (interaction.isModalSubmit()) {
       // Handle modal form submissions
@@ -156,13 +165,58 @@ async function handleHelloCommand(interaction) {
   });
 }
 
+// Function to send language selection message to a channel
+async function sendLanguageSelectionMessage(channel) {
+  // Create the language selection embed
+  const embed = new EmbedBuilder()
+    .setTitle("🌍 Select Your Language")
+    .setDescription(
+      "To proceed and access our community, please select your preferred language by clicking one of the buttons below:"
+    )
+    .addFields(
+      {
+        name: "🇺🇸 English",
+        value: "Select if you prefer English",
+        inline: true,
+      },
+      {
+        name: "🇧🇦 Bosnian/Croatian/Serbian",
+        value: "Select if you prefer BCS languages",
+        inline: true,
+      }
+    )
+    .setColor(0x0099ff)
+    .setFooter({ text: "You must select a language to continue!" })
+    .setTimestamp();
+
+  // Create language selection buttons
+  const englishButton = new ButtonBuilder()
+    .setCustomId("english_button")
+    .setLabel("English")
+    .setEmoji("🇺🇸")
+    .setStyle(ButtonStyle.Primary);
+
+  const bcsButton = new ButtonBuilder()
+    .setCustomId("bcs_button")
+    .setLabel("Bosnian/Croatian/Serbian")
+    .setEmoji("🇧🇦")
+    .setStyle(ButtonStyle.Primary);
+
+  const row = new ActionRowBuilder().addComponents(englishButton, bcsButton);
+
+  await channel.send({
+    embeds: [embed],
+    components: [row],
+  });
+}
+
 // Function to send join message to a channel
 async function sendJoinMessage(channel) {
   // Create the embed
   const embed = new EmbedBuilder()
     .setTitle("🚀 Join Our Community!")
     .setDescription(
-      "Welcome! To join our community, you'll need to fill out a registration form with the following information:"
+      "Welcome! To join our community, you'll need to fill out a registration form with the following information:\n\n⚠️ **Important**: You must first select your language in <#1409926327934652517> before getting full access to the server!"
     )
     .addFields(
       { name: "📝 Required Information", value: "\u200B", inline: false },
@@ -247,6 +301,78 @@ async function handleJoinButton(interaction) {
   modal.addComponents(firstRow, secondRow, thirdRow, fourthRow);
 
   await interaction.showModal(modal);
+}
+
+async function handleLanguageSelection(interaction, language) {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const guild = interaction.guild;
+    const member = interaction.member;
+
+    let roleId;
+    let languageName;
+
+    if (language === "english") {
+      roleId = ROLES.ENGLISH;
+      languageName = "English";
+    } else if (language === "bcs") {
+      roleId = ROLES.BOSNIAN_CROATIAN_SERBIAN;
+      languageName = "Bosnian/Croatian/Serbian";
+    }
+
+    const role = guild.roles.cache.get(roleId);
+    if (role) {
+      // Check if user already has this role
+      if (member.roles.cache.has(roleId)) {
+        await interaction.editReply({
+          content: `✅ You already have the ${languageName} role!`,
+        });
+        return;
+      }
+
+      // Remove other language roles first (if any)
+      const otherLanguageRoles = [
+        ROLES.ENGLISH,
+        ROLES.BOSNIAN_CROATIAN_SERBIAN,
+      ].filter((id) => id !== roleId);
+      for (const otherRoleId of otherLanguageRoles) {
+        if (member.roles.cache.has(otherRoleId)) {
+          const otherRole = guild.roles.cache.get(otherRoleId);
+          if (otherRole) {
+            await member.roles.remove(otherRole);
+            log.info(
+              `Removed ${otherRole.name} role from ${interaction.user.tag}`
+            );
+          }
+        }
+      }
+
+      // Add the selected language role
+      await member.roles.add(role);
+      log.info(`Assigned ${languageName} role to ${interaction.user.tag}`);
+
+      const successEmbed = new EmbedBuilder()
+        .setTitle("✅ Language Selected!")
+        .setDescription(`You have been assigned the **${languageName}** role.`)
+        .setColor(0x00ff00)
+        .setTimestamp();
+
+      await interaction.editReply({
+        embeds: [successEmbed],
+      });
+    } else {
+      await interaction.editReply({
+        content: "❌ Language role not found. Please contact an administrator.",
+      });
+    }
+  } catch (error) {
+    log.error(`Error assigning language role: ${error.message}`);
+    await interaction.editReply({
+      content:
+        "❌ There was an error assigning your language role. Please try again or contact an administrator.",
+    });
+  }
 }
 
 async function handleJoinModal(interaction) {
