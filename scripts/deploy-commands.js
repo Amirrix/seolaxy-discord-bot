@@ -7,10 +7,6 @@ const commands = [
     name: "hello",
     description: "Replies with Hello World!",
   },
-  {
-    name: "join",
-    description: "Join the server with member registration form",
-  },
   // Add more commands here in the future
 ];
 

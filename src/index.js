@@ -33,12 +33,13 @@ const config = {
   logLevel: process.env.LOG_LEVEL || "info",
 };
 
-// Role IDs for language and member roles
+// Role IDs for member role
 const ROLES = {
-  ENGLISH: "1409879924180783225",
-  BOSNIAN_CROATIAN_SERBIAN: "1409880194424115260",
   MEMBER: "1409879830408859809",
 };
+
+// Channel ID where the join message should be sent
+const JOIN_CHANNEL_ID = "1409606552402268180";
 
 // Logging utility
 const log = {
@@ -72,14 +73,27 @@ function validateConfig() {
 }
 
 // Event: Bot is ready
-client.once(Events.ClientReady, (readyClient) => {
+client.once(Events.ClientReady, async (readyClient) => {
   log.info(`🎉 Bot is ready! Logged in as ${readyClient.user.tag}`);
   log.info(`🌐 Connected to ${readyClient.guilds.cache.size} guild(s)`);
 
   // Set bot activity status
-  client.user.setActivity("for /join and /hello commands", {
+  client.user.setActivity("for new members", {
     type: "WATCHING",
   });
+
+  // Send join message to the specified channel
+  try {
+    const joinChannel = await client.channels.fetch(JOIN_CHANNEL_ID);
+    if (joinChannel) {
+      await sendJoinMessage(joinChannel);
+      log.info(`✅ Join message sent to channel #${joinChannel.name}`);
+    } else {
+      log.error(`❌ Could not find channel with ID: ${JOIN_CHANNEL_ID}`);
+    }
+  } catch (error) {
+    log.error(`❌ Error sending join message: ${error.message}`);
+  }
 });
 
 // Event: Handle interactions (commands, buttons, modals)
@@ -94,9 +108,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       switch (interaction.commandName) {
         case "hello":
           await handleHelloCommand(interaction);
-          break;
-        case "join":
-          await handleJoinCommand(interaction);
           break;
         default:
           log.warn(`Unknown command: ${interaction.commandName}`);
@@ -145,12 +156,8 @@ async function handleHelloCommand(interaction) {
   });
 }
 
-async function handleJoinCommand(interaction) {
-  const user = interaction.user;
-  const channel = interaction.channel;
-
-  log.info(`Join command executed by ${user.tag} in #${channel.name}`);
-
+// Function to send join message to a channel
+async function sendJoinMessage(channel) {
   // Create the embed
   const embed = new EmbedBuilder()
     .setTitle("🚀 Join Our Community!")
@@ -167,15 +174,11 @@ async function handleJoinCommand(interaction) {
         inline: true,
       },
       {
-        name: "Language",
-        value: "English or Bosnian/Croatian/Serbian",
-        inline: true,
-      },
-      {
         name: "Invoice Number",
         value: "Your invoice number for verification",
         inline: true,
       },
+      { name: "\u200B", value: "\u200B", inline: true },
       { name: "\u200B", value: "\u200B", inline: true }
     )
     .setColor(0x00ae86)
@@ -191,7 +194,7 @@ async function handleJoinCommand(interaction) {
 
   const row = new ActionRowBuilder().addComponents(joinButton);
 
-  await interaction.reply({
+  await channel.send({
     embeds: [embed],
     components: [row],
   });
@@ -228,13 +231,6 @@ async function handleJoinButton(interaction) {
     .setMaxLength(100)
     .setPlaceholder("Leave blank if you're searching for a project");
 
-  const languageInput = new TextInputBuilder()
-    .setCustomId("language")
-    .setLabel("Language")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setPlaceholder("English or Bosnian/Croatian/Serbian");
-
   const invoiceInput = new TextInputBuilder()
     .setCustomId("invoice_number")
     .setLabel("Invoice Number")
@@ -246,10 +242,9 @@ async function handleJoinButton(interaction) {
   const firstRow = new ActionRowBuilder().addComponents(firstNameInput);
   const secondRow = new ActionRowBuilder().addComponents(lastNameInput);
   const thirdRow = new ActionRowBuilder().addComponents(projectNameInput);
-  const fourthRow = new ActionRowBuilder().addComponents(languageInput);
-  const fifthRow = new ActionRowBuilder().addComponents(invoiceInput);
+  const fourthRow = new ActionRowBuilder().addComponents(invoiceInput);
 
-  modal.addComponents(firstRow, secondRow, thirdRow, fourthRow, fifthRow);
+  modal.addComponents(firstRow, secondRow, thirdRow, fourthRow);
 
   await interaction.showModal(modal);
 }
@@ -261,9 +256,6 @@ async function handleJoinModal(interaction) {
   const lastName = interaction.fields.getTextInputValue("last_name");
   const projectName =
     interaction.fields.getTextInputValue("project_name") || "searching";
-  const language = interaction.fields
-    .getTextInputValue("language")
-    .toLowerCase();
   const invoiceNumber = interaction.fields.getTextInputValue("invoice_number");
 
   log.info(
@@ -287,29 +279,7 @@ async function handleJoinModal(interaction) {
       );
     }
 
-    // 2. Assign language role
-    let languageRole;
-    if (language.includes("english") || language === "en") {
-      languageRole = guild.roles.cache.get(ROLES.ENGLISH);
-    } else if (
-      language.includes("bosnian") ||
-      language.includes("croatian") ||
-      language.includes("serbian") ||
-      language.includes("bcs")
-    ) {
-      languageRole = guild.roles.cache.get(ROLES.BOSNIAN_CROATIAN_SERBIAN);
-    }
-
-    if (languageRole) {
-      await member.roles.add(languageRole);
-      log.info(
-        `Assigned language role ${languageRole.name} to ${interaction.user.tag}`
-      );
-    } else {
-      log.warn(`Unknown language selected: ${language}`);
-    }
-
-    // 3. Validate invoice and assign member role
+    // 2. Validate invoice and assign member role
     const isInvoiceValid = await mockApiCall(invoiceNumber);
     if (isInvoiceValid) {
       const memberRole = guild.roles.cache.get(ROLES.MEMBER);
@@ -327,11 +297,6 @@ async function handleJoinModal(interaction) {
       )
       .addFields(
         { name: "Nickname", value: newNickname, inline: true },
-        {
-          name: "Language Role",
-          value: languageRole ? languageRole.name : "❌ Not assigned",
-          inline: true,
-        },
         {
           name: "Member Status",
           value: isInvoiceValid
