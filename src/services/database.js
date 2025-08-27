@@ -140,6 +140,35 @@ async function fetchAllUsers() {
 }
 
 /**
+ * Check if payment intent already exists in database
+ * @param {string} invoiceNumber - Payment intent ID to check
+ * @returns {boolean} - True if payment intent exists, false otherwise
+ */
+async function checkPaymentIntentExists(invoiceNumber) {
+  try {
+    if (!dbPool) {
+      logger.warn("Database not available, cannot check payment intent");
+      return false;
+    }
+
+    const [rows] = await dbPool.execute(
+      "SELECT id FROM users WHERE invoice_number = ? LIMIT 1",
+      [invoiceNumber]
+    );
+
+    const exists = rows.length > 0;
+    logger.info(`Payment intent ${invoiceNumber} existence check: ${exists}`);
+
+    return exists;
+  } catch (error) {
+    logger.error(`Error checking payment intent existence: ${error.message}`);
+    // In case of error, we'll allow the registration to proceed
+    // This prevents database issues from blocking legitimate users
+    return false;
+  }
+}
+
+/**
  * Get database pool instance
  * @returns {mysql.Pool|null} - Database pool or null
  */
@@ -151,5 +180,6 @@ module.exports = {
   initDatabase,
   saveUser,
   fetchAllUsers,
+  checkPaymentIntentExists,
   getPool,
 };

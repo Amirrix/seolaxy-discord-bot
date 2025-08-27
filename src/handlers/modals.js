@@ -6,6 +6,7 @@
 const logger = require("../utils/logger");
 const seolaxyApi = require("../services/seolaxyApi");
 const userService = require("../services/userService");
+const database = require("../services/database");
 const { createRegistrationSuccessEmbed } = require("../components/embeds");
 const { updateUsersEmbed } = require("./buttons");
 
@@ -32,12 +33,31 @@ async function handleJoinModal(interaction) {
     const guild = interaction.guild;
     const member = interaction.member;
 
-    // 1. Validate payment intent
+    // 1. Validate payment intent with Seolaxy API
     const isInvoiceValid = await seolaxyApi.validatePaymentIntent(
       invoiceNumber
     );
 
-    // 2. Process user registration
+    // 2. Check if payment intent is already used (security check)
+    if (isInvoiceValid) {
+      const paymentIntentExists = await database.checkPaymentIntentExists(
+        invoiceNumber
+      );
+
+      if (paymentIntentExists) {
+        logger.warn(
+          `Duplicate payment intent attempted by ${interaction.user.tag}: ${invoiceNumber}`
+        );
+
+        await interaction.editReply({
+          content:
+            "❌ **Security Alert:** This payment intent has already been used for registration. Each payment intent can only be used once. If you believe this is an error, please contact an administrator.",
+        });
+        return;
+      }
+    }
+
+    // 3. Process user registration
     const userData = {
       discordId: interaction.user.id,
       discordUsername: interaction.user.tag,
@@ -54,7 +74,7 @@ async function handleJoinModal(interaction) {
       guild
     );
 
-    // 3. Update users embed if user was saved successfully
+    // 4. Update users embed if user was saved successfully
     if (registrationResult.saved && isInvoiceValid) {
       try {
         await updateUsersEmbed();
@@ -65,7 +85,7 @@ async function handleJoinModal(interaction) {
       }
     }
 
-    // 4. Send confirmation message
+    // 5. Send confirmation message
     const embed = createRegistrationSuccessEmbed({
       nickname: registrationResult.nickname,
       isValid: isInvoiceValid,

@@ -25,6 +25,7 @@ A professional, enterprise-grade Discord bot built with Node.js and discord.js v
 ### 🔐 **Authentication & Registration**
 - **User Registration System**: Complete modal-based registration flow
 - **Payment Validation**: Real-time validation using Seolaxy API
+- **Fraud Prevention**: Duplicate payment intent detection and blocking
 - **Role Management**: Automatic role assignment based on language preferences
 - **Nickname Management**: Auto-formatting user nicknames with project info
 
@@ -33,6 +34,7 @@ A professional, enterprise-grade Discord bot built with Node.js and discord.js v
 - **User Management**: Complete CRUD operations for user data
 - **Data Export**: CSV export functionality for user analytics
 - **Pagination**: Efficient handling of large user datasets
+- **Security Checks**: Duplicate payment intent validation and fraud prevention
 
 ### 🎨 **User Interface**
 - **Interactive Embeds**: Professional, branded Discord embeds
@@ -45,6 +47,8 @@ A professional, enterprise-grade Discord bot built with Node.js and discord.js v
 - **Error Handling**: Comprehensive error handling and logging
 - **Input Validation**: Sanitized user inputs and SQL injection protection
 - **Rate Limiting**: Built-in Discord rate limit handling
+- **🚨 Fraud Prevention**: Duplicate payment intent detection and blocking
+- **Security Logging**: Comprehensive logging of security events and threats
 
 ### 🚀 **Production Ready**
 - **Modular Architecture**: Clean, maintainable, and scalable codebase
@@ -266,6 +270,7 @@ The bot follows a **modular, service-oriented architecture** with clear separati
    - Connection pooling and management
    - User CRUD operations
    - Schema management and migrations
+   - Duplicate payment intent detection
 
 2. **API Service** (`src/services/seolaxyApi.js`)
    - Payment intent validation
@@ -285,8 +290,16 @@ The bot follows a **modular, service-oriented architecture** with clear separati
 ### Data Flow
 
 ```
-User Interaction → Handler → Service → Database/API → Response
+User Interaction → Handler → API Validation → Security Check → Service → Database → Response
 ```
+
+### Security Workflow
+
+```
+Registration Request → Payment Intent Validation → Duplicate Check → User Processing → Database Save
+```
+
+If any step fails, the registration is blocked and the user receives appropriate feedback.
 
 ## 📊 Database Schema
 
@@ -325,6 +338,29 @@ CREATE TABLE users (
 ```
 
 **Authentication**: Bearer token in Authorization header
+
+### Security Features
+
+#### 🛡️ Duplicate Payment Intent Prevention
+
+The bot implements a comprehensive fraud prevention system:
+
+1. **API Validation**: Validates payment intent with Seolaxy API
+2. **Database Check**: Verifies payment intent hasn't been used before
+3. **Registration Blocking**: Prevents duplicate registrations
+4. **Security Logging**: Logs all fraud attempts for analysis
+
+**Security Flow**:
+```
+Payment Intent → API Validation → Database Duplicate Check → Registration Processing
+```
+
+**Fraud Detection Response**:
+```
+❌ Security Alert: This payment intent has already been used for registration. 
+Each payment intent can only be used once. If you believe this is an error, 
+please contact an administrator.
+```
 
 ## 🌐 VPS Deployment
 
@@ -388,6 +424,7 @@ pm2 status
 
 Monitor these key metrics:
 - **Registration Success Rate**: API validation success percentage
+- **Security Events**: Fraud attempts and duplicate payment intents
 - **Database Performance**: Query execution times
 - **Discord API Rate Limits**: Request/response times
 - **Memory Usage**: Bot memory consumption
@@ -411,6 +448,12 @@ Monitor these key metrics:
 - Check `SEOLAXY_API_BEARER_TOKEN` is valid
 - Verify API endpoint URL
 - Review API rate limits
+
+**Duplicate payment intent error:**
+- This is a security feature working correctly
+- Each payment intent can only be used once
+- Check database for existing registrations with same payment intent
+- Contact administrator if legitimate user needs to re-register
 
 **Role assignment not working:**
 - Update role IDs in `src/constants/roles.js`
