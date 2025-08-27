@@ -18,7 +18,11 @@ const database = require("./services/database");
 
 // Handlers
 const { handleCommand } = require("./handlers/commands");
-const { handleButton, updateUsersEmbed } = require("./handlers/buttons");
+const {
+  handleButton,
+  updateUsersEmbed,
+  resetUsersEmbedState,
+} = require("./handlers/buttons");
 const { handleModal } = require("./handlers/modals");
 
 // Components
@@ -43,6 +47,50 @@ const client = new Client({
 
 // Make client available to other modules
 module.exports = { client };
+
+/**
+ * Clean up previous bot messages in specified channels
+ * @param {Array} channelIds - Array of channel IDs to clean
+ */
+async function cleanupPreviousMessages(channelIds) {
+  for (const channelId of channelIds) {
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (!channel) {
+        logger.warn(`Could not find channel with ID: ${channelId} for cleanup`);
+        continue;
+      }
+
+      // Fetch recent messages (last 100)
+      const messages = await channel.messages.fetch({ limit: 100 });
+
+      // Filter messages sent by this bot
+      const botMessages = messages.filter(
+        (message) => message.author.id === client.user.id
+      );
+
+      if (botMessages.size > 0) {
+        // Delete bot messages
+        for (const message of botMessages.values()) {
+          try {
+            await message.delete();
+            logger.debug(
+              `Deleted previous bot message in channel ${channel.name}`
+            );
+          } catch (deleteError) {
+            // Message might already be deleted or we don't have permissions
+            logger.debug(`Could not delete message: ${deleteError.message}`);
+          }
+        }
+        logger.info(
+          `Cleaned up ${botMessages.size} previous bot messages in #${channel.name}`
+        );
+      }
+    } catch (error) {
+      logger.error(`Error cleaning up channel ${channelId}: ${error.message}`);
+    }
+  }
+}
 
 /**
  * Send join message to specified channel
@@ -70,6 +118,16 @@ client.once(Events.ClientReady, async (readyClient) => {
   client.user.setActivity(discordConfig.activity.name, {
     type: discordConfig.activity.type,
   });
+
+  // Clean up previous bot messages in key channels
+  logger.info("🧹 Cleaning up previous bot messages...");
+  await cleanupPreviousMessages([
+    channels.JOIN_CHANNEL_ID,
+    channels.USERS_CHANNEL_ID,
+  ]);
+
+  // Reset users embed state after cleanup
+  resetUsersEmbedState();
 
   // Send join message to the specified channel
   try {
@@ -149,4 +207,5 @@ module.exports = {
   client,
   startBot,
   sendJoinMessage,
+  cleanupPreviousMessages,
 };

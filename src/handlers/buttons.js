@@ -16,6 +16,14 @@ let currentUsersPage = 1;
 let usersEmbedMessageId = null;
 
 /**
+ * Reset users embed state (called after cleanup)
+ */
+function resetUsersEmbedState() {
+  usersEmbedMessageId = null;
+  currentUsersPage = 1;
+}
+
+/**
  * Handle join button click
  * @param {Interaction} interaction - Discord interaction
  */
@@ -195,4 +203,5 @@ module.exports = {
   handleJoinButton,
   handleUsersPaginationButton,
   handleUsersExportButton,
+  resetUsersEmbedState,
 };
