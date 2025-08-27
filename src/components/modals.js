@@ -36,7 +36,7 @@ function createRegistrationModal() {
 
   const emailInput = new TextInputBuilder()
     .setCustomId("email")
-    .setLabel("Google Account email address")
+    .setLabel("Email Address")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(100)
@@ -44,11 +44,11 @@ function createRegistrationModal() {
 
   const projectNameInput = new TextInputBuilder()
     .setCustomId("project_name")
-    .setLabel("Project Name (Optional)")
+    .setLabel("Project/Client URL (optional)")
     .setStyle(TextInputStyle.Short)
     .setRequired(false)
     .setMaxLength(100)
-    .setPlaceholder("Leave blank if you're searching for a project");
+    .setPlaceholder("Enter 'searching' if you don't have a client.");
 
   const invoiceInput = new TextInputBuilder()
     .setCustomId("invoice_number")
