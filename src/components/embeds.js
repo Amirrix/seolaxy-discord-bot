@@ -70,8 +70,8 @@ function createEnglishSuccessEmbed(
   let description = "Congratulations, registration successful.";
 
   if (isValid && userLanguage === "english") {
-    // Include both channel mention and fallback text
-    description += `\n\nPlease click on next (bottom right, white arrow in purple circle)\n\n🎯 **Next Step:** Please visit <#${channels.INTRODUCE_YOURSELF_ENGLISH}> (or look for the **introduce-yourself** channel) to introduce yourself to the community!`;
+    description +=
+      "\n\nPlease click on next (bottom right, white arrow in purple circle)";
   }
 
   return new EmbedBuilder()
@@ -106,9 +106,6 @@ function createBosnianSuccessEmbed(nickname, memberStatusText) {
 
   description +=
     "\n\nMolim te klikni na next (dole desno, bijela strelica u ljubičastom krugu)";
-
-  // Include both channel mention and fallback text
-  description += `\n\n🎯 **Sljedeći korak:** Molimo da posjeti <#${channels.INTRODUCE_YOURSELF_BOSNIAN}> (ili potražite kanal **predstavi-se**) da se predstaviš zajednici!`;
 
   return new EmbedBuilder()
     .setTitle("✅ Registracija uspješna!")
