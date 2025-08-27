@@ -128,6 +128,20 @@ async function createUsersTable() {
 
     await dbPool.execute(createTableQuery);
     log.info("Users table created or verified successfully");
+
+    // Fix existing table character set if it exists
+    try {
+      const alterTableQuery = `
+        ALTER TABLE users 
+        CONVERT TO CHARACTER SET utf8mb4 
+        COLLATE utf8mb4_unicode_ci
+      `;
+      await dbPool.execute(alterTableQuery);
+      log.info("Users table character set updated to utf8mb4");
+    } catch (alterError) {
+      // This might fail if table doesn't exist yet, which is fine
+      log.debug(`Table alter query info: ${alterError.message}`);
+    }
   } catch (error) {
     log.error(`Error creating users table: ${error.message}`);
   }
