@@ -10,8 +10,11 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  AttachmentBuilder,
 } = require("discord.js");
 const mysql = require("mysql2/promise");
+const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
 // Import command deployment function
@@ -84,8 +87,10 @@ const log = {
 // Database connection pool
 let dbPool;
 
-// Store the users embed message ID for updating
+// Store the users embed message ID and pagination state
 let usersEmbedMessageId = null;
+let currentUsersPage = 1;
+const USERS_PER_PAGE = 10;
 
 // Initialize database connection
 async function initDatabase() {
@@ -212,57 +217,67 @@ async function fetchAllUsers() {
   }
 }
 
-// Generate users embed
-async function generateUsersEmbed() {
+// Generate users embed with pagination
+async function generateUsersEmbed(page = 1) {
   const users = await fetchAllUsers();
+  const totalUsers = users.length;
+  const totalPages = Math.ceil(totalUsers / USERS_PER_PAGE);
+
+  // Ensure page is within valid range
+  page = Math.max(1, Math.min(page, totalPages));
+  currentUsersPage = page;
 
   const embed = new EmbedBuilder()
     .setTitle("📊 Registered Users Database")
     .setColor(0x00ae86)
-    .setTimestamp()
-    .setFooter({ text: `Total Users: ${users.length}` });
+    .setTimestamp();
 
-  if (users.length === 0) {
+  if (totalUsers === 0) {
     embed.setDescription("No users registered yet.");
-    return embed;
+    embed.setFooter({ text: "Total Users: 0" });
+    return { embed, totalPages: 0 };
   }
 
-  // Discord embed field limit is 25 fields, and each field has a 1024 character limit
-  // We'll show up to 20 users to leave room for pagination info
-  const maxUsersPerEmbed = 20;
-  const displayUsers = users.slice(0, maxUsersPerEmbed);
+  // Calculate pagination
+  const startIndex = (page - 1) * USERS_PER_PAGE;
+  const endIndex = Math.min(startIndex + USERS_PER_PAGE, totalUsers);
+  const displayUsers = users.slice(startIndex, endIndex);
 
   let description = "";
 
   for (let i = 0; i < displayUsers.length; i++) {
     const user = displayUsers[i];
+    const globalIndex = startIndex + i + 1;
     const userInfo =
-      `**${i + 1}.** ${user.first_name} ${user.last_name}\n` +
+      `**${globalIndex}.** ${user.first_name} ${user.last_name}\n` +
       `📧 ${user.email}\n` +
       `🏷️ ${user.project_name || "Searching"}\n` +
       `📄 Invoice: ${user.invoice_number}\n` +
       `🆔 Discord: ${user.discord_username}\n` +
       `📅 Joined: ${new Date(user.created_at).toLocaleDateString()}\n\n`;
 
-    // Check if adding this user would exceed Discord's 4096 character limit
-    if (description.length + userInfo.length > 4000) {
-      description += `\n*... and ${users.length - i} more users*`;
-      break;
-    }
-
     description += userInfo;
   }
 
-  if (users.length > maxUsersPerEmbed) {
-    description += `\n📄 Showing ${displayUsers.length} of ${users.length} total users`;
+  // Add pagination info
+  if (totalPages > 1) {
+    description += `\n➖\n📄 **Page ${page} of ${totalPages}** | Showing users ${
+      startIndex + 1
+    }-${endIndex} of ${totalUsers}`;
+  } else {
+    description += `\n➖\n📄 Showing all ${totalUsers} users`;
   }
 
   embed.setDescription(description);
-  return embed;
+  embed.setFooter({
+    text: `Total Users: ${totalUsers} | Page ${page}/${totalPages}`,
+  });
+
+  return { embed, totalPages };
 }
 
 // Send or update users embed in the users channel
-async function updateUsersEmbed() {
+async function updateUsersEmbed(page = currentUsersPage) {
   try {
     const usersChannel = await client.channels.fetch(USERS_CHANNEL_ID);
     if (!usersChannel) {
@@ -270,7 +285,48 @@ async function updateUsersEmbed() {
       return;
     }
 
-    const embed = await generateUsersEmbed();
+    const { embed, totalPages } = await generateUsersEmbed(page);
+
+    // Create navigation buttons
+    let components = [];
+
+    if (totalPages > 1) {
+      // Pagination buttons row
+      const paginationRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("users_first_page")
+          .setLabel("⏮️")
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(page === 1),
+        new ButtonBuilder()
+          .setCustomId("users_prev_page")
+          .setLabel("⬅️")
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(page === 1),
+        new ButtonBuilder()
+          .setCustomId("users_next_page")
+          .setLabel("➡️")
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(page === totalPages),
+        new ButtonBuilder()
+          .setCustomId("users_last_page")
+          .setLabel("⏭️")
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(page === totalPages)
+      );
+      components.push(paginationRow);
+    }
+
+    // Export button row (always available if there are users)
+    if (totalPages > 0) {
+      const exportRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("users_export_csv")
+          .setLabel("📊 Export CSV")
+          .setStyle(ButtonStyle.Success)
+      );
+      components.push(exportRow);
+    }
 
     if (usersEmbedMessageId) {
       // Try to edit existing message
@@ -278,8 +334,8 @@ async function updateUsersEmbed() {
         const existingMessage = await usersChannel.messages.fetch(
           usersEmbedMessageId
         );
-        await existingMessage.edit({ embeds: [embed] });
-        log.info("Users embed updated successfully");
+        await existingMessage.edit({ embeds: [embed], components });
+        log.info(`Users embed updated successfully (page ${page})`);
         return;
       } catch (error) {
         log.warn(`Could not edit existing users embed: ${error.message}`);
@@ -288,11 +344,176 @@ async function updateUsersEmbed() {
     }
 
     // Send new message
-    const message = await usersChannel.send({ embeds: [embed] });
+    const message = await usersChannel.send({ embeds: [embed], components });
     usersEmbedMessageId = message.id;
-    log.info("New users embed sent successfully");
+    log.info(`New users embed sent successfully (page ${page})`);
   } catch (error) {
     log.error(`Error updating users embed: ${error.message}`);
+  }
+}
+
+// Handle users pagination button clicks
+async function handleUsersPaginationButton(interaction) {
+  try {
+    await interaction.deferUpdate(); // Acknowledge the interaction without sending a response
+
+    const users = await fetchAllUsers();
+    const totalPages = Math.ceil(users.length / USERS_PER_PAGE);
+    let newPage = currentUsersPage;
+
+    switch (interaction.customId) {
+      case "users_first_page":
+        newPage = 1;
+        break;
+      case "users_prev_page":
+        newPage = Math.max(1, currentUsersPage - 1);
+        break;
+      case "users_next_page":
+        newPage = Math.min(totalPages, currentUsersPage + 1);
+        break;
+      case "users_last_page":
+        newPage = totalPages;
+        break;
+      default:
+        log.warn(`Unknown pagination button: ${interaction.customId}`);
+        return;
+    }
+
+    // Update the embed with the new page
+    await updateUsersEmbed(newPage);
+
+    log.info(
+      `Users pagination: moved to page ${newPage} by ${interaction.user.tag}`
+    );
+  } catch (error) {
+    log.error(`Error handling users pagination: ${error.message}`);
+    try {
+      await interaction.followUp({
+        content: "❌ Error updating the users list. Please try again.",
+        flags: 64, // EPHEMERAL flag
+      });
+    } catch (followUpError) {
+      log.error(
+        `Error sending pagination error message: ${followUpError.message}`
+      );
+    }
+  }
+}
+
+// Generate CSV data from users table
+async function generateUsersCSV() {
+  try {
+    const users = await fetchAllUsers();
+
+    if (users.length === 0) {
+      return null;
+    }
+
+    // CSV headers
+    const headers = [
+      "ID",
+      "Discord ID",
+      "Discord Username",
+      "First Name",
+      "Last Name",
+      "Email",
+      "Project Name",
+      "Invoice Number",
+      "Created At",
+      "Updated At",
+    ];
+
+    // CSV rows
+    const rows = users.map((user) => [
+      user.id,
+      user.discord_id,
+      user.discord_username,
+      user.first_name,
+      user.last_name,
+      user.email,
+      user.project_name || "Searching",
+      user.invoice_number,
+      new Date(user.created_at).toISOString(),
+      new Date(user.updated_at).toISOString(),
+    ]);
+
+    // Escape CSV fields (handle commas, quotes, newlines)
+    const escapeCSVField = (field) => {
+      if (field === null || field === undefined) return "";
+      const stringField = String(field);
+      if (
+        stringField.includes(",") ||
+        stringField.includes('"') ||
+        stringField.includes("\n")
+      ) {
+        return '"' + stringField.replace(/\"/g, '""') + '"';
+      }
+      return stringField;
+    };
+
+    // Build CSV content
+    let csvContent = headers.map(escapeCSVField).join(",") + "\n";
+
+    for (const row of rows) {
+      csvContent += row.map(escapeCSVField).join(",") + "\n";
+    }
+
+    return csvContent;
+  } catch (error) {
+    log.error(`Error generating CSV: ${error.message}`);
+    return null;
+  }
+}
+
+// Handle users export button click
+async function handleUsersExportButton(interaction) {
+  try {
+    await interaction.deferReply({ flags: 64 }); // Ephemeral response
+
+    log.info(`Users CSV export requested by ${interaction.user.tag}`);
+
+    // Generate CSV data
+    const csvContent = await generateUsersCSV();
+
+    if (!csvContent) {
+      await interaction.editReply({
+        content: "❌ No users found to export or error generating CSV.",
+      });
+      return;
+    }
+
+    // Create filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `users-export-${timestamp}.csv`;
+
+    // Create attachment
+    const attachment = new AttachmentBuilder(Buffer.from(csvContent, "utf-8"), {
+      name: filename,
+    });
+
+    // Get user count for confirmation message
+    const users = await fetchAllUsers();
+
+    await interaction.editReply({
+      content: `✅ **Users database exported successfully!**\n\n📊 **${
+        users.length
+      } users** exported to CSV\n📅 Generated: ${new Date().toLocaleString()}`,
+      files: [attachment],
+    });
+
+    log.info(
+      `CSV export completed for ${interaction.user.tag} - ${users.length} users exported`
+    );
+  } catch (error) {
+    log.error(`Error handling users export: ${error.message}`);
+    try {
+      await interaction.editReply({
+        content:
+          "❌ Error generating CSV export. Please try again or contact an administrator.",
+      });
+    } catch (editError) {
+      log.error(`Error sending export error message: ${editError.message}`);
+    }
   }
 }
 
@@ -366,6 +587,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
       // Handle button interactions
       if (interaction.customId === "join_button") {
         await handleJoinButton(interaction);
+      } else if (interaction.customId.startsWith("users_")) {
+        // Handle users-related buttons
+        if (interaction.customId === "users_export_csv") {
+          await handleUsersExportButton(interaction);
+        } else {
+          // Handle pagination buttons
+          await handleUsersPaginationButton(interaction);
+        }
       }
     } else if (interaction.isModalSubmit()) {
       // Handle modal form submissions
