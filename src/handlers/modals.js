@@ -70,6 +70,7 @@ async function handleJoinModal(interaction) {
       nickname: registrationResult.nickname,
       isValid: isInvoiceValid,
       memberRoleName: registrationResult.memberRoleName,
+      userLanguage: registrationResult.userLanguage,
     });
 
     await interaction.editReply({

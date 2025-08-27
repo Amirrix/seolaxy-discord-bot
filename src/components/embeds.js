@@ -49,7 +49,7 @@ function createJoinEmbed() {
  * @returns {EmbedBuilder} - Success embed
  */
 function createRegistrationSuccessEmbed(data) {
-  const { nickname, isValid, memberRoleName } = data;
+  const { nickname, isValid, memberRoleName, userLanguage } = data;
 
   let memberStatusText = "❌ Invoice validation failed";
   if (isValid) {
@@ -58,11 +58,46 @@ function createRegistrationSuccessEmbed(data) {
       : "✅ Verified";
   }
 
+  // Determine language and create appropriate embed
+  if (userLanguage === "bosnian" && isValid) {
+    return createBosnianSuccessEmbed(nickname, memberStatusText);
+  } else {
+    return createEnglishSuccessEmbed(
+      nickname,
+      memberStatusText,
+      isValid,
+      userLanguage
+    );
+  }
+}
+
+/**
+ * Create English registration success embed
+ * @param {string} nickname - User nickname
+ * @param {string} memberStatusText - Member status text
+ * @param {boolean} isValid - Whether registration is valid
+ * @param {string} userLanguage - User's language preference
+ * @returns {EmbedBuilder} - English success embed
+ */
+function createEnglishSuccessEmbed(
+  nickname,
+  memberStatusText,
+  isValid,
+  userLanguage
+) {
+  const channels = require("../constants/channels");
+
+  let description =
+    "Welcome to our community! Your registration has been processed.";
+
+  if (isValid && userLanguage === "english") {
+    // Include both channel mention and fallback text
+    description += `\n\n🎯 **Next Step:** Please visit <#${channels.INTRODUCE_YOURSELF_ENGLISH}> (or look for the **introduce-yourself** channel) to introduce yourself to the community!`;
+  }
+
   return new EmbedBuilder()
     .setTitle("✅ Registration Successful!")
-    .setDescription(
-      "Welcome to our community! Your registration has been processed."
-    )
+    .setDescription(description)
     .addFields(
       {
         name: "Nickname",
@@ -76,6 +111,39 @@ function createRegistrationSuccessEmbed(data) {
       }
     )
     .setColor(isValid ? 0x00ff00 : 0xff9900)
+    .setTimestamp();
+}
+
+/**
+ * Create Bosnian registration success embed
+ * @param {string} nickname - User nickname
+ * @param {string} memberStatusText - Member status text
+ * @returns {EmbedBuilder} - Bosnian success embed
+ */
+function createBosnianSuccessEmbed(nickname, memberStatusText) {
+  const channels = require("../constants/channels");
+
+  let description = `Dobrodošli u našu zajednicu! Vaša registracija je uspješno obrađena.`;
+
+  // Include both channel mention and fallback text
+  description += `\n\n🎯 **Sljedeći korak:** Molimo da posjeti <#${channels.INTRODUCE_YOURSELF_BOSNIAN}> (ili potražite kanal **predstavi-se**) da se predstaviš zajednici!`;
+
+  return new EmbedBuilder()
+    .setTitle("✅ Registracija uspješna!")
+    .setDescription(description)
+    .addFields(
+      {
+        name: "Nadimak",
+        value: nickname || "Nadimak nije mogao biti postavljen",
+        inline: true,
+      },
+      {
+        name: "Status člana",
+        value: memberStatusText,
+        inline: true,
+      }
+    )
+    .setColor(0x00ff00)
     .setTimestamp();
 }
 

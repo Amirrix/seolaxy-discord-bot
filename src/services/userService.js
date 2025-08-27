@@ -20,6 +20,7 @@ async function processUserRegistration(userData, member, guild) {
     roleAssigned: false,
     memberRoleName: null,
     nickname: null,
+    userLanguage: null,
   };
 
   try {
@@ -55,6 +56,7 @@ async function processUserRegistration(userData, member, guild) {
     const roleResult = await assignMemberRole(member, guild);
     result.roleAssigned = roleResult.success;
     result.memberRoleName = roleResult.roleName;
+    result.userLanguage = roleResult.userLanguage;
 
     return result;
   } catch (error) {
@@ -70,7 +72,7 @@ async function processUserRegistration(userData, member, guild) {
  * @returns {Object} - Role assignment result
  */
 async function assignMemberRole(member, guild) {
-  const result = { success: false, roleName: null };
+  const result = { success: false, roleName: null, userLanguage: null };
 
   try {
     const unverifiedRole = guild.roles.cache.get(ROLES.UNVERIFIED);
@@ -80,13 +82,16 @@ async function assignMemberRole(member, guild) {
     if (member.roles.cache.has(ROLES.ENGLISH)) {
       memberRole = guild.roles.cache.get(ROLES.ENGLISH_MEMBER);
       result.roleName = "English Member";
+      result.userLanguage = "english";
     } else if (member.roles.cache.has(ROLES.BOSNIAN_CROATIAN_SERBIAN)) {
       memberRole = guild.roles.cache.get(ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER);
       result.roleName = "Bosnian/Croatian/Serbian Member";
+      result.userLanguage = "bosnian";
     } else {
       // Fallback to legacy member role if no language role found
       memberRole = guild.roles.cache.get(ROLES.MEMBER);
       result.roleName = "Member (No language role detected)";
+      result.userLanguage = "unknown";
       logger.warn(
         `User ${member.user.tag} has no language role, using legacy member role`
       );
