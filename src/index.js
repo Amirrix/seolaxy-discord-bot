@@ -42,8 +42,9 @@ const dbConfig = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || "customer_1110818_users",
   connectionLimit: 10,
-  acquireTimeout: 60000,
-  reconnect: true,
+  timeout: 60000,
+  charset: "utf8mb4",
+  ssl: false,
 };
 
 // Role IDs for language and member roles
@@ -122,7 +123,7 @@ async function createUsersTable() {
         invoice_number VARCHAR(50) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      )
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `;
 
     await dbPool.execute(createTableQuery);
@@ -344,7 +345,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           log.warn(`Unknown command: ${interaction.commandName}`);
           await interaction.reply({
             content: "❌ Unknown command!",
-            ephemeral: true,
+            flags: 64, // EPHEMERAL flag
           });
       }
     } else if (interaction.isButton()) {
@@ -363,7 +364,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const errorMessage = {
       content: "❌ There was an error while executing this command!",
-      ephemeral: true,
+      flags: 64, // EPHEMERAL flag
     };
 
     if (interaction.replied || interaction.deferred) {
@@ -495,7 +496,7 @@ async function handleJoinButton(interaction) {
 }
 
 async function handleJoinModal(interaction) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 }); // 64 = EPHEMERAL flag
 
   const firstName = interaction.fields.getTextInputValue("first_name");
   const lastName = interaction.fields.getTextInputValue("last_name");
@@ -550,6 +551,16 @@ async function handleJoinModal(interaction) {
         log.warn(
           `User ${interaction.user.tag} has no language role, using legacy member role`
         );
+
+        // If legacy member role doesn't exist, log available roles for debugging
+        if (!memberRole) {
+          const availableRoles = guild.roles.cache
+            .map((role) => `${role.name} (${role.id})`)
+            .join(", ");
+          log.error(
+            `Legacy member role not found! Available roles: ${availableRoles}`
+          );
+        }
       }
 
       if (memberRole) {
