@@ -37,6 +37,15 @@ const config = {
   logLevel: process.env.LOG_LEVEL || "info",
 };
 
+// Seolaxy API configuration
+const seolaxyAPI = {
+  baseURL:
+    process.env.SEOLAXY_API_BASE_URL ||
+    "https://dev.mentorship.seolaxy.com/api/open-api",
+  bearerToken: process.env.SEOLAXY_API_BEARER_TOKEN,
+  timeout: 10000, // 10 seconds timeout
+};
+
 // Database configuration
 const dbConfig = {
   host: process.env.DB_HOST || "uk03-sql.pebblehost.com",
@@ -519,7 +528,12 @@ async function handleUsersExportButton(interaction) {
 
 // Validate environment variables
 function validateConfig() {
-  const required = ["DISCORD_TOKEN", "CLIENT_ID", "GUILD_ID"];
+  const required = [
+    "DISCORD_TOKEN",
+    "CLIENT_ID",
+    "GUILD_ID",
+    "SEOLAXY_API_BEARER_TOKEN",
+  ];
   const missing = required.filter((key) => !process.env[key]);
 
   if (missing.length > 0) {
@@ -649,8 +663,8 @@ async function sendJoinMessage(channel) {
         inline: true,
       },
       {
-        name: "Invoice Number",
-        value: "Your invoice number for verification",
+        name: "Payment Intent ID",
+        value: "Your payment intent ID for verification",
         inline: true,
       },
       {
@@ -713,10 +727,11 @@ async function handleJoinButton(interaction) {
 
   const invoiceInput = new TextInputBuilder()
     .setCustomId("invoice_number")
-    .setLabel("Invoice Number")
+    .setLabel("Payment Intent ID")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setMaxLength(50);
+    .setMaxLength(100)
+    .setPlaceholder("pi_1A2B3C4D5E6F7G8H9I0J");
 
   const emailInput = new TextInputBuilder()
     .setCustomId("email")
@@ -769,8 +784,8 @@ async function handleJoinModal(interaction) {
       );
     }
 
-    // 2. Validate invoice and assign language-specific member role
-    const isInvoiceValid = await mockApiCall(invoiceNumber);
+    // 2. Validate payment intent and assign language-specific member role
+    const isInvoiceValid = await validatePaymentIntent(invoiceNumber);
     let memberRoleName; // Initialize outside to use in confirmation message
 
     if (isInvoiceValid) {
@@ -877,21 +892,65 @@ async function handleJoinModal(interaction) {
   }
 }
 
-// Mock API call for invoice validation
-async function mockApiCall(invoiceNumber) {
-  log.info(`Mock API call for invoice: ${invoiceNumber}`);
+// Seolaxy API call for payment intent validation
+async function validatePaymentIntent(paymentIntentId) {
+  log.info(`Validating payment intent: ${paymentIntentId}`);
 
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  try {
+    const url = `${
+      seolaxyAPI.baseURL
+    }/payment-intent/validate?payment_intent_id=${encodeURIComponent(
+      paymentIntentId
+    )}`;
 
-  // Mock validation logic - for demo purposes, let's say invoices starting with "VALID" are valid
-  // In real implementation, this would be an actual API call
-  const isValid =
-    invoiceNumber.toUpperCase().startsWith("VALID") ||
-    invoiceNumber.length >= 5; // Simple mock validation
+    // Check if bearer token is configured
+    if (!seolaxyAPI.bearerToken) {
+      log.error(
+        "Seolaxy API bearer token not configured - check SEOLAXY_API_BEARER_TOKEN environment variable"
+      );
+      return false;
+    }
 
-  log.info(`Invoice ${invoiceNumber} validation result: ${isValid}`);
-  return isValid;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${seolaxyAPI.bearerToken}`,
+        "Content-Type": "application/json",
+        "User-Agent": "Seolaxy-Discord-Bot/1.0",
+      },
+      timeout: seolaxyAPI.timeout,
+    });
+
+    if (!response.ok) {
+      log.error(
+        `API request failed with status: ${response.status} ${response.statusText}`
+      );
+      return false;
+    }
+
+    const data = await response.json();
+    log.info(`Payment intent ${paymentIntentId} validation response:`, data);
+
+    // Handle different response cases
+    if (data.error === "invalid_token") {
+      log.error("Invalid API token - check bearer token configuration");
+      return false;
+    }
+
+    // Return the isValid boolean from the API response
+    const isValid = data.isValid === true;
+    log.info(`Payment intent ${paymentIntentId} validation result: ${isValid}`);
+
+    return isValid;
+  } catch (error) {
+    log.error(
+      `Error validating payment intent ${paymentIntentId}: ${error.message}`
+    );
+
+    // In case of network errors, we'll return false to be safe
+    // But we could also implement a fallback mechanism here
+    return false;
+  }
 }
 
 // Error handling
