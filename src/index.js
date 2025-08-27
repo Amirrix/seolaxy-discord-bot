@@ -11,6 +11,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
 } = require("discord.js");
+const mysql = require("mysql2/promise");
 require("dotenv").config();
 
 // Import command deployment function
@@ -33,6 +34,18 @@ const config = {
   logLevel: process.env.LOG_LEVEL || "info",
 };
 
+// Database configuration
+const dbConfig = {
+  host: process.env.DB_HOST || "uk03-sql.pebblehost.com",
+  port: process.env.DB_PORT || 3306,
+  user: process.env.DB_USER || "customer_1110818_users",
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || "customer_1110818_users",
+  connectionLimit: 10,
+  acquireTimeout: 60000,
+  reconnect: true,
+};
+
 // Role IDs for language and member roles
 const ROLES = {
   // Language roles (assigned during onboarding)
@@ -48,8 +61,9 @@ const ROLES = {
   UNVERIFIED: "1409929646610583652",
 };
 
-// Channel ID where the join message should be sent
+// Channel IDs
 const JOIN_CHANNEL_ID = "1409606552402268180";
+const USERS_CHANNEL_ID = "1410217982579441684";
 
 // Logging utility
 const log = {
@@ -65,6 +79,207 @@ const log = {
     }
   },
 };
+
+// Database connection pool
+let dbPool;
+
+// Store the users embed message ID for updating
+let usersEmbedMessageId = null;
+
+// Initialize database connection
+async function initDatabase() {
+  try {
+    dbPool = mysql.createPool(dbConfig);
+    log.info("Database connection pool created successfully");
+
+    // Test the connection
+    const connection = await dbPool.getConnection();
+    await connection.ping();
+    connection.release();
+    log.info("Database connection test successful");
+
+    // Create users table if it doesn't exist
+    await createUsersTable();
+  } catch (error) {
+    log.error(`Database connection failed: ${error.message}`);
+    // Don't exit the process, just log the error
+    // The bot can still function without database features
+  }
+}
+
+// Create users table if it doesn't exist
+async function createUsersTable() {
+  try {
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        discord_id VARCHAR(20) UNIQUE NOT NULL,
+        discord_username VARCHAR(100) NOT NULL,
+        first_name VARCHAR(50) NOT NULL,
+        last_name VARCHAR(50) NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        project_name VARCHAR(100),
+        invoice_number VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `;
+
+    await dbPool.execute(createTableQuery);
+    log.info("Users table created or verified successfully");
+  } catch (error) {
+    log.error(`Error creating users table: ${error.message}`);
+  }
+}
+
+// Save user to database
+async function saveUser(userData) {
+  try {
+    if (!dbPool) {
+      log.warn("Database not available, skipping user save");
+      return false;
+    }
+
+    const insertQuery = `
+      INSERT INTO users (discord_id, discord_username, first_name, last_name, email, project_name, invoice_number)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        discord_username = VALUES(discord_username),
+        first_name = VALUES(first_name),
+        last_name = VALUES(last_name),
+        email = VALUES(email),
+        project_name = VALUES(project_name),
+        invoice_number = VALUES(invoice_number),
+        updated_at = CURRENT_TIMESTAMP
+    `;
+
+    const [result] = await dbPool.execute(insertQuery, [
+      userData.discordId,
+      userData.discordUsername,
+      userData.firstName,
+      userData.lastName,
+      userData.email,
+      userData.projectName,
+      userData.invoiceNumber,
+    ]);
+
+    log.info(`User ${userData.discordUsername} saved to database successfully`);
+
+    // Update the users embed in the users channel (don't let this fail the save)
+    try {
+      await updateUsersEmbed();
+    } catch (embedError) {
+      log.error(`Error updating users embed after save: ${embedError.message}`);
+    }
+
+    return true;
+  } catch (error) {
+    log.error(`Error saving user to database: ${error.message}`);
+    return false;
+  }
+}
+
+// Fetch all users from database
+async function fetchAllUsers() {
+  try {
+    if (!dbPool) {
+      log.warn("Database not available, cannot fetch users");
+      return [];
+    }
+
+    const [rows] = await dbPool.execute(
+      "SELECT * FROM users ORDER BY created_at DESC"
+    );
+    return rows;
+  } catch (error) {
+    log.error(`Error fetching users from database: ${error.message}`);
+    return [];
+  }
+}
+
+// Generate users embed
+async function generateUsersEmbed() {
+  const users = await fetchAllUsers();
+
+  const embed = new EmbedBuilder()
+    .setTitle("📊 Registered Users Database")
+    .setColor(0x00ae86)
+    .setTimestamp()
+    .setFooter({ text: `Total Users: ${users.length}` });
+
+  if (users.length === 0) {
+    embed.setDescription("No users registered yet.");
+    return embed;
+  }
+
+  // Discord embed field limit is 25 fields, and each field has a 1024 character limit
+  // We'll show up to 20 users to leave room for pagination info
+  const maxUsersPerEmbed = 20;
+  const displayUsers = users.slice(0, maxUsersPerEmbed);
+
+  let description = "";
+
+  for (let i = 0; i < displayUsers.length; i++) {
+    const user = displayUsers[i];
+    const userInfo =
+      `**${i + 1}.** ${user.first_name} ${user.last_name}\n` +
+      `📧 ${user.email}\n` +
+      `🏷️ ${user.project_name || "Searching"}\n` +
+      `📄 Invoice: ${user.invoice_number}\n` +
+      `🆔 Discord: ${user.discord_username}\n` +
+      `📅 Joined: ${new Date(user.created_at).toLocaleDateString()}\n\n`;
+
+    // Check if adding this user would exceed Discord's 4096 character limit
+    if (description.length + userInfo.length > 4000) {
+      description += `\n*... and ${users.length - i} more users*`;
+      break;
+    }
+
+    description += userInfo;
+  }
+
+  if (users.length > maxUsersPerEmbed) {
+    description += `\n📄 Showing ${displayUsers.length} of ${users.length} total users`;
+  }
+
+  embed.setDescription(description);
+  return embed;
+}
+
+// Send or update users embed in the users channel
+async function updateUsersEmbed() {
+  try {
+    const usersChannel = await client.channels.fetch(USERS_CHANNEL_ID);
+    if (!usersChannel) {
+      log.error(`Could not find users channel with ID: ${USERS_CHANNEL_ID}`);
+      return;
+    }
+
+    const embed = await generateUsersEmbed();
+
+    if (usersEmbedMessageId) {
+      // Try to edit existing message
+      try {
+        const existingMessage = await usersChannel.messages.fetch(
+          usersEmbedMessageId
+        );
+        await existingMessage.edit({ embeds: [embed] });
+        log.info("Users embed updated successfully");
+        return;
+      } catch (error) {
+        log.warn(`Could not edit existing users embed: ${error.message}`);
+        usersEmbedMessageId = null; // Reset so we create a new one
+      }
+    }
+
+    // Send new message
+    const message = await usersChannel.send({ embeds: [embed] });
+    usersEmbedMessageId = message.id;
+    log.info("New users embed sent successfully");
+  } catch (error) {
+    log.error(`Error updating users embed: ${error.message}`);
+  }
+}
 
 // Validate environment variables
 function validateConfig() {
@@ -87,6 +302,9 @@ client.once(Events.ClientReady, async (readyClient) => {
   log.info(`🎉 Bot is ready! Logged in as ${readyClient.user.tag}`);
   log.info(`🌐 Connected to ${readyClient.guilds.cache.size} guild(s)`);
 
+  // Initialize database connection
+  await initDatabase();
+
   // Set bot activity status
   client.user.setActivity("for new members", {
     type: "WATCHING",
@@ -104,6 +322,9 @@ client.once(Events.ClientReady, async (readyClient) => {
   } catch (error) {
     log.error(`❌ Error sending join message: ${error.message}`);
   }
+
+  // Initialize users embed in users channel
+  await updateUsersEmbed();
 });
 
 // Event: Handle interactions (commands, buttons, modals)
@@ -188,6 +409,11 @@ async function sendJoinMessage(channel) {
         value: "Your invoice number for verification",
         inline: true,
       },
+      {
+        name: "Email Address",
+        value: "Your email address",
+        inline: true,
+      },
       { name: "\u200B", value: "\u200B", inline: true },
       { name: "\u200B", value: "\u200B", inline: true }
     )
@@ -248,13 +474,22 @@ async function handleJoinButton(interaction) {
     .setRequired(true)
     .setMaxLength(50);
 
+  const emailInput = new TextInputBuilder()
+    .setCustomId("email")
+    .setLabel("Email Address")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(100)
+    .setPlaceholder("your.email@example.com");
+
   // Create action rows for each input
   const firstRow = new ActionRowBuilder().addComponents(firstNameInput);
   const secondRow = new ActionRowBuilder().addComponents(lastNameInput);
-  const thirdRow = new ActionRowBuilder().addComponents(projectNameInput);
-  const fourthRow = new ActionRowBuilder().addComponents(invoiceInput);
+  const thirdRow = new ActionRowBuilder().addComponents(emailInput);
+  const fourthRow = new ActionRowBuilder().addComponents(projectNameInput);
+  const fifthRow = new ActionRowBuilder().addComponents(invoiceInput);
 
-  modal.addComponents(firstRow, secondRow, thirdRow, fourthRow);
+  modal.addComponents(firstRow, secondRow, thirdRow, fourthRow, fifthRow);
 
   await interaction.showModal(modal);
 }
@@ -264,6 +499,7 @@ async function handleJoinModal(interaction) {
 
   const firstName = interaction.fields.getTextInputValue("first_name");
   const lastName = interaction.fields.getTextInputValue("last_name");
+  const email = interaction.fields.getTextInputValue("email");
   const projectName =
     interaction.fields.getTextInputValue("project_name") || "searching";
   const invoiceNumber = interaction.fields.getTextInputValue("invoice_number");
@@ -331,7 +567,27 @@ async function handleJoinModal(interaction) {
       }
     }
 
-    // 4. Send confirmation message
+    // 4. Save user to database
+    if (isInvoiceValid) {
+      const userData = {
+        discordId: interaction.user.id,
+        discordUsername: interaction.user.tag,
+        firstName,
+        lastName,
+        email,
+        projectName,
+        invoiceNumber,
+      };
+
+      const savedToDb = await saveUser(userData);
+      if (savedToDb) {
+        log.info(`User ${interaction.user.tag} saved to database successfully`);
+      } else {
+        log.warn(`Failed to save user ${interaction.user.tag} to database`);
+      }
+    }
+
+    // 5. Send confirmation message
     let memberStatusText = "❌ Invoice validation failed";
     if (isInvoiceValid) {
       memberStatusText = memberRoleName
