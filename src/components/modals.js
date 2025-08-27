@@ -36,11 +36,11 @@ function createRegistrationModal() {
 
   const emailInput = new TextInputBuilder()
     .setCustomId("email")
-    .setLabel("Email Address")
+    .setLabel("Google Account email address")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(100)
-    .setPlaceholder("your.email@example.com");
+    .setPlaceholder("your.google.account@gmail.com");
 
   const projectNameInput = new TextInputBuilder()
     .setCustomId("project_name")

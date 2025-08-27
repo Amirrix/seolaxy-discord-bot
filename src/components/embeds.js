@@ -18,26 +18,6 @@ function createJoinEmbed() {
     .setDescription(
       "Welcome! To join our community, you'll need to fill out a registration form with the following information:"
     )
-    .addFields(
-      { name: "📝 Required Information", value: "\u200B", inline: false },
-      { name: "First Name", value: "Your first name", inline: true },
-      { name: "Last Name", value: "Your last name", inline: true },
-      {
-        name: "Project Name",
-        value: "Optional - Leave blank if searching",
-        inline: true,
-      },
-      {
-        name: "Invoice Number",
-        value: "Your invoice number for verification",
-        inline: true,
-      },
-      {
-        name: "Email Address",
-        value: "Your email address",
-        inline: true,
-      }
-    )
     .setColor(0x00ae86)
     .setFooter({ text: "Click the button below to get started!" })
     .setTimestamp();
@@ -87,12 +67,11 @@ function createEnglishSuccessEmbed(
 ) {
   const channels = require("../constants/channels");
 
-  let description =
-    "Welcome to our community! Your registration has been processed.";
+  let description = "Congratulations, registration successful.";
 
   if (isValid && userLanguage === "english") {
     // Include both channel mention and fallback text
-    description += `\n\n🎯 **Next Step:** Please visit <#${channels.INTRODUCE_YOURSELF_ENGLISH}> (or look for the **introduce-yourself** channel) to introduce yourself to the community!`;
+    description += `\n\nPlease click on next (bottom right, white arrow in purple circle)\n\n🎯 **Next Step:** Please visit <#${channels.INTRODUCE_YOURSELF_ENGLISH}> (or look for the **introduce-yourself** channel) to introduce yourself to the community!`;
   }
 
   return new EmbedBuilder()
@@ -123,7 +102,10 @@ function createEnglishSuccessEmbed(
 function createBosnianSuccessEmbed(nickname, memberStatusText) {
   const channels = require("../constants/channels");
 
-  let description = `Dobrodošli u našu zajednicu! Vaša registracija je uspješno obrađena.`;
+  let description = "Čestitam, registracija je uspješna.";
+
+  description +=
+    "\n\nMolim te klikni na next (dole desno, bijela strelica u ljubičastom krugu)";
 
   // Include both channel mention and fallback text
   description += `\n\n🎯 **Sljedeći korak:** Molimo da posjeti <#${channels.INTRODUCE_YOURSELF_BOSNIAN}> (ili potražite kanal **predstavi-se**) da se predstaviš zajednici!`;
