@@ -1,6 +1,6 @@
 # 🤖 Seolaxy Discord Bot
 
-A professional Discord bot built with Node.js and discord.js v14, featuring slash commands and proper production deployment configuration.
+A professional, enterprise-grade Discord bot built with Node.js and discord.js v14, featuring user registration, payment validation, database integration, and comprehensive user management capabilities.
 
 ## 📋 Table of Contents
 
@@ -12,25 +12,51 @@ A professional Discord bot built with Node.js and discord.js v14, featuring slas
 - [Discord Developer Portal Setup](#-discord-developer-portal-setup)
 - [Local Development](#-local-development)
 - [Commands](#-commands)
+- [Architecture](#-architecture)
 - [VPS Deployment](#-vps-deployment)
 - [Monitoring & Logs](#-monitoring--logs)
+- [API Integration](#-api-integration)
+- [Database Schema](#-database-schema)
 - [Troubleshooting](#-troubleshooting)
 - [Contributing](#-contributing)
 
 ## ✨ Features
 
-- **Slash Commands**: Modern Discord slash command support
+### 🔐 **Authentication & Registration**
+- **User Registration System**: Complete modal-based registration flow
+- **Payment Validation**: Real-time validation using Seolaxy API
+- **Role Management**: Automatic role assignment based on language preferences
+- **Nickname Management**: Auto-formatting user nicknames with project info
+
+### 📊 **Database Integration**
+- **MySQL Database**: Full user data persistence with UTF-8 support
+- **User Management**: Complete CRUD operations for user data
+- **Data Export**: CSV export functionality for user analytics
+- **Pagination**: Efficient handling of large user datasets
+
+### 🎨 **User Interface**
+- **Interactive Embeds**: Professional, branded Discord embeds
+- **Pagination Controls**: Navigate through user lists with arrow buttons
+- **Export Controls**: One-click CSV export for administrators
+- **Real-time Updates**: Live updates when new users register
+
+### 🛡️ **Security & Reliability**
 - **Environment Configuration**: Secure token and configuration management
-- **Professional Structure**: Well-organized codebase following best practices
 - **Error Handling**: Comprehensive error handling and logging
-- **Production Ready**: PM2 configuration for VPS deployment
+- **Input Validation**: Sanitized user inputs and SQL injection protection
+- **Rate Limiting**: Built-in Discord rate limit handling
+
+### 🚀 **Production Ready**
+- **Modular Architecture**: Clean, maintainable, and scalable codebase
+- **PM2 Integration**: Process management for VPS deployment
 - **Auto-restart**: Automatic restart on crashes
-- **Logging**: Structured logging with different levels
+- **Structured Logging**: Multi-level logging with timestamps
 
 ## 📋 Prerequisites
 
 - **Node.js**: Version 16.9.0 or higher
 - **npm**: Latest version
+- **MySQL**: Database server (PebbleHost or local)
 - **Discord Account**: For creating the bot application
 - **VPS**: Ubuntu/Debian server for production deployment (optional)
 
@@ -39,25 +65,55 @@ A professional Discord bot built with Node.js and discord.js v14, featuring slas
 ```
 seolaxy-discord-bot/
 ├── src/
-│   └── index.js              # Main bot file
+│   ├── index.js                  # Main bot entry point
+│   ├── config/                   # Configuration modules
+│   │   ├── database.js           # Database configuration
+│   │   ├── discord.js            # Discord client configuration
+│   │   └── api.js                # Seolaxy API configuration
+│   ├── constants/                # Application constants
+│   │   ├── roles.js              # Discord role IDs
+│   │   └── channels.js           # Discord channel IDs
+│   ├── services/                 # Business logic services
+│   │   ├── database.js           # Database operations
+│   │   ├── seolaxyApi.js         # API integration
+│   │   ├── userService.js        # User management
+│   │   └── csvExport.js          # CSV export functionality
+│   ├── handlers/                 # Discord event handlers
+│   │   ├── commands.js           # Slash command handlers
+│   │   ├── buttons.js            # Button interaction handlers
+│   │   └── modals.js             # Modal submission handlers
+│   ├── components/               # UI components
+│   │   ├── embeds.js             # Discord embed templates
+│   │   ├── buttons.js            # Button component builders
+│   │   └── modals.js             # Modal form builders
+│   ├── utils/                    # Utility functions
+│   │   ├── logger.js             # Centralized logging
+│   │   └── validation.js         # Input validation
+│   └── images/                   # Static assets
+│       ├── logo-mobile.svg
+│       └── welcome-back.png
 ├── scripts/
-│   └── deploy-commands.js    # Command deployment script
+│   ├── deploy-commands.js        # Command deployment script
+│   └── setup.js                 # Initial setup script
 ├── docs/
-│   ├── DISCORD_SETUP.md      # Discord Developer Portal guide
-│   └── VPS_DEPLOYMENT.md     # VPS deployment guide
-├── logs/                     # PM2 logs directory (created automatically)
-├── .env.example             # Environment variables template
-├── .gitignore               # Git ignore rules
-├── ecosystem.config.js      # PM2 configuration
-├── package.json             # Project dependencies and scripts
-└── README.md               # This file
+│   ├── DISCORD_SETUP.md          # Discord Developer Portal guide
+│   └── VPS_DEPLOYMENT.md         # VPS deployment guide
+├── logs/                         # PM2 logs directory (auto-created)
+├── .env.example                  # Environment variables template
+├── .gitignore                    # Git ignore rules
+├── .eslintrc.js                  # ESLint configuration
+├── ecosystem.config.js           # PM2 configuration
+├── package.json                  # Project dependencies
+├── LICENSE                       # MIT License
+├── CONTRIBUTING.md               # Contribution guidelines
+└── README.md                     # This file
 ```
 
 ## 🚀 Installation
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/seolaxy-discord-bot.git
+   git clone https://github.com/seolaxy/discord-bot.git
    cd seolaxy-discord-bot
    ```
 
@@ -71,7 +127,12 @@ seolaxy-discord-bot/
    cp env.example .env
    ```
    
-   Edit `.env` and fill in your Discord bot credentials (see [Configuration](#-configuration)).
+   Edit `.env` and fill in your credentials (see [Configuration](#-configuration)).
+
+4. **Run initial setup** (optional):
+   ```bash
+   npm run setup
+   ```
 
 ## ⚙️ Configuration
 
@@ -86,6 +147,17 @@ GUILD_ID=your_guild_id_here
 # Environment
 NODE_ENV=development
 LOG_LEVEL=info
+
+# Database Configuration
+DB_HOST=uk03-sql.pebblehost.com
+DB_PORT=3306
+DB_NAME=customer_1110818_users
+DB_USER=customer_1110818_users
+DB_PASSWORD=your_database_password_here
+
+# Seolaxy API Configuration
+SEOLAXY_API_BASE_URL=https://dev.mentorship.seolaxy.com/api/open-api
+SEOLAXY_API_BEARER_TOKEN=your_seolaxy_api_bearer_token_here
 ```
 
 ### Environment Variables Explained
@@ -95,6 +167,8 @@ LOG_LEVEL=info
 - **GUILD_ID**: Your Discord server's ID where you want to test the bot
 - **NODE_ENV**: Environment mode (`development` or `production`)
 - **LOG_LEVEL**: Logging level (`error`, `warn`, `info`, `debug`)
+- **DB_***: Database connection credentials for your MySQL server
+- **SEOLAXY_API_***: Seolaxy API configuration for payment validation
 
 ## 🎯 Discord Developer Portal Setup
 
@@ -121,210 +195,259 @@ LOG_LEVEL=info
 3. Click **"Copy"** and save this token securely
 4. Add this token to your `.env` file as `DISCORD_TOKEN`
 
-### Step 4: Get Your Application ID
+### Step 4: Set Bot Permissions
 
-1. Go to the **"General Information"** section
-2. Copy the **"Application ID"**
-3. Add this to your `.env` file as `CLIENT_ID`
+Required permissions for the bot:
+- **Send Messages**
+- **Use Slash Commands**
+- **Manage Nicknames**
+- **Manage Roles**
+- **Read Message History**
+- **Attach Files**
 
-### Step 5: Get Your Guild ID
+### Step 5: Invite Bot to Server
 
-1. Open Discord and go to your server
-2. Right-click on your server name
-3. Click **"Copy Server ID"** (enable Developer Mode in Discord settings if not visible)
-4. Add this to your `.env` file as `GUILD_ID`
-
-### Step 6: Set Bot Permissions
-
-1. Go to the **"Bot"** section
-2. Under **"Privileged Gateway Intents"**, you can leave all unchecked for this basic bot
-3. Scroll down to **"Bot Permissions"** and select:
-   - **Send Messages**
-   - **Use Slash Commands**
-   - **View Channels**
-
-### Step 7: Generate Invite Link
-
-1. Go to the **"OAuth2 > URL Generator"** section
-2. Select **Scopes**: `bot` and `applications.commands`
-3. Select **Permissions**: Same as Step 6
-4. Copy the generated URL and open it to invite your bot to your server
+1. Go to **"OAuth2"** → **"URL Generator"**
+2. Select **"bot"** and **"applications.commands"** scopes
+3. Select the required permissions
+4. Copy the generated URL and open it in your browser
+5. Select your server and authorize the bot
 
 ## 💻 Local Development
 
-1. **Start the bot** (commands auto-deploy on startup):
-   ```bash
-   npm run dev    # Development mode with auto-restart
-   # or
-   npm start      # Production mode
-   ```
+```bash
+# Start in development mode with auto-reload
+npm run dev
 
-   **✨ Note**: Slash commands are automatically deployed when the bot starts, so you don't need to run `npm run deploy` separately!
+# Start in production mode
+npm start
 
-2. **Manual command deployment** (optional):
-   ```bash
-   npm run deploy   # Only needed if you want to deploy commands without starting the bot
-   ```
+# Deploy commands to Discord
+npm run deploy
 
-### Available Scripts
+# Run setup wizard
+npm run setup
 
-- `npm start` - Start the bot in production mode (auto-deploys commands)
-- `npm run dev` - Start the bot with auto-restart on file changes (auto-deploys commands)
-- `npm run deploy` - Manually deploy slash commands to Discord (optional)
-- `npm run setup` - Interactive environment setup helper
-- `npm run lint` - Check code style
-- `npm run lint:fix` - Fix code style issues automatically
+# Lint code
+npm run lint
+
+# Fix linting issues
+npm run lint:fix
+```
 
 ## 🎮 Commands
 
-### `/hello`
-- **Description**: Replies with "Hello world!"
-- **Usage**: Type `/hello` in any channel where the bot has access
-- **Response**: "👋 Hello world! Nice to meet you, [YourName]!"
+### Slash Commands
+
+- **/hello** - Test command that greets the user
+
+### Interactive Features
+
+- **Join Button** - Opens registration modal
+- **User Pagination** - Navigate through registered users
+- **CSV Export** - Download complete user database
+- **Real-time Updates** - Automatic embed updates
+
+## 🏗️ Architecture
+
+### Design Principles
+
+The bot follows a **modular, service-oriented architecture** with clear separation of concerns:
+
+- **Configuration Layer**: Centralized environment and API configuration
+- **Service Layer**: Business logic for database, API, and user operations
+- **Handler Layer**: Discord event processing and interaction management
+- **Component Layer**: Reusable UI components for embeds, buttons, and modals
+- **Utility Layer**: Shared functionality like logging and validation
+
+### Key Components
+
+1. **Database Service** (`src/services/database.js`)
+   - Connection pooling and management
+   - User CRUD operations
+   - Schema management and migrations
+
+2. **API Service** (`src/services/seolaxyApi.js`)
+   - Payment intent validation
+   - Error handling and retry logic
+   - Secure authentication
+
+3. **User Service** (`src/services/userService.js`)
+   - Registration workflow orchestration
+   - Role assignment logic
+   - Nickname management
+
+4. **Event Handlers** (`src/handlers/`)
+   - Command processing
+   - Button interactions
+   - Modal submissions
+
+### Data Flow
+
+```
+User Interaction → Handler → Service → Database/API → Response
+```
+
+## 📊 Database Schema
+
+### Users Table
+
+```sql
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  discord_id VARCHAR(20) UNIQUE NOT NULL,
+  discord_username VARCHAR(100) NOT NULL,
+  first_name VARCHAR(50) NOT NULL,
+  last_name VARCHAR(50) NOT NULL,
+  email VARCHAR(100) NOT NULL,
+  project_name VARCHAR(100),
+  invoice_number VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+## 🔌 API Integration
+
+### Seolaxy Payment Validation API
+
+**Endpoint**: `GET /payment-intent/validate`
+
+**Parameters**:
+- `payment_intent_id`: The payment intent ID to validate
+
+**Response**:
+```json
+{
+  "isValid": true | false,
+  "error": "invalid_token" // Only if authentication fails
+}
+```
+
+**Authentication**: Bearer token in Authorization header
 
 ## 🌐 VPS Deployment
 
-### Prerequisites on VPS
-
-1. **Update system**:
-   ```bash
-   sudo apt update && sudo apt upgrade -y
-   ```
-
-2. **Install Node.js**:
-   ```bash
-   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-   sudo apt-get install -y nodejs
-   ```
-
-3. **Install PM2 globally**:
-   ```bash
-   sudo npm install -g pm2
-   ```
-
-4. **Install Git**:
-   ```bash
-   sudo apt install git -y
-   ```
-
-### Deployment Steps
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/seolaxy-discord-bot.git
-   cd seolaxy-discord-bot
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install --production
-   ```
-
-3. **Set up environment**:
-   ```bash
-   cp env.example .env
-   nano .env  # Edit with your actual values
-   ```
-
-4. **Create logs directory**:
-   ```bash
-   mkdir logs
-   ```
-
-5. **Deploy commands**:
-   ```bash
-   npm run deploy
-   ```
-
-6. **Start with PM2**:
-   ```bash
-   pm2 start ecosystem.config.js --env production
-   ```
-
-7. **Save PM2 configuration**:
-   ```bash
-   pm2 save
-   pm2 startup
-   ```
-
-8. **Check status**:
-   ```bash
-   pm2 status
-   pm2 logs seolaxy-discord-bot
-   ```
-
-### PM2 Management Commands
+### Quick Deploy
 
 ```bash
-# View bot status
-pm2 status
+# On your VPS
+git clone https://github.com/seolaxy/discord-bot.git
+cd seolaxy-discord-bot
+npm install --production
+cp env.example .env
+# Edit .env with your production values
+npm run deploy
+pm2 start ecosystem.config.js --env production
+```
 
-# View real-time logs
+### PM2 Configuration
+
+The included `ecosystem.config.js` provides:
+- **Auto-restart** on crashes
+- **Memory monitoring** with restart at 1GB
+- **Log management** with timestamps
+- **Zero-downtime** deployments
+- **Environment** separation
+
+### PM2 Commands
+
+```bash
+# Start the bot
+pm2 start ecosystem.config.js
+
+# View logs
 pm2 logs seolaxy-discord-bot
 
-# Restart the bot
+# Restart bot
 pm2 restart seolaxy-discord-bot
 
-# Stop the bot
+# Stop bot
 pm2 stop seolaxy-discord-bot
 
-# Delete the bot from PM2
-pm2 delete seolaxy-discord-bot
-
-# Monitor resource usage
-pm2 monit
+# View status
+pm2 status
 ```
 
 ## 📊 Monitoring & Logs
 
-### Log Files (when using PM2)
-
-- **Error logs**: `./logs/pm2-error.log`
-- **Output logs**: `./logs/pm2-out.log`
-- **Combined logs**: `./logs/pm2-combined.log`
-
 ### Log Levels
 
-- **error**: Only error messages
-- **warn**: Warnings and errors
-- **info**: General information, warnings, and errors
-- **debug**: All messages including debug information
+- **ERROR**: Critical errors that need immediate attention
+- **WARN**: Warning conditions that should be monitored
+- **INFO**: General information about bot operations
+- **DEBUG**: Detailed debugging information (development only)
 
-## 🔧 Troubleshooting
+### Log Locations
+
+- **Console**: Real-time logging output
+- **PM2 Logs**: `./logs/pm2-*.log` (in production)
+- **Application Logs**: Structured logging with timestamps
+
+### Monitoring
+
+Monitor these key metrics:
+- **Registration Success Rate**: API validation success percentage
+- **Database Performance**: Query execution times
+- **Discord API Rate Limits**: Request/response times
+- **Memory Usage**: Bot memory consumption
+- **Error Rates**: Application error frequency
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **Bot doesn't respond to commands**:
-   - Ensure commands are deployed: `npm run deploy`
-   - Check bot permissions in Discord server
-   - Verify bot is online (green status)
+**Bot not responding to commands:**
+- Verify `DISCORD_TOKEN` is correct
+- Check bot permissions in Discord server
+- Ensure commands are deployed (`npm run deploy`)
 
-2. **"Missing Access" error**:
-   - Check bot permissions in the channel
-   - Ensure bot has "Use Slash Commands" permission
+**Database connection failed:**
+- Verify database credentials in `.env`
+- Check database server accessibility
+- Confirm MySQL server is running
 
-3. **Environment variable errors**:
-   - Verify `.env` file exists and has correct values
-   - Check for extra spaces or quotes in `.env` values
-   - Ensure all required variables are set
+**API validation failing:**
+- Check `SEOLAXY_API_BEARER_TOKEN` is valid
+- Verify API endpoint URL
+- Review API rate limits
 
-4. **PM2 issues**:
-   - Check PM2 status: `pm2 status`
-   - View logs: `pm2 logs seolaxy-discord-bot`
-   - Restart: `pm2 restart seolaxy-discord-bot`
+**Role assignment not working:**
+- Update role IDs in `src/constants/roles.js`
+- Verify bot has "Manage Roles" permission
+- Check role hierarchy (bot role must be higher)
 
 ### Debug Mode
 
-Enable debug logging by setting `LOG_LEVEL=debug` in your `.env` file.
+Enable debug logging:
+```env
+LOG_LEVEL=debug
+```
 
-## 🤝 Contributing
+This provides detailed information about:
+- Database queries and responses
+- API requests and responses
+- Discord interaction processing
+- Internal state changes
+
+## 👥 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Development Setup
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run linting: `npm run lint:fix`
-5. Test your changes
-6. Submit a pull request
+4. Add tests if applicable
+5. Submit a pull request
+
+### Code Style
+
+- Follow ESLint configuration
+- Use meaningful variable and function names
+- Add JSDoc comments for functions
+- Maintain consistent file structure
 
 ## 📄 License
 
@@ -332,12 +455,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-If you need help:
-
-1. Check the [Troubleshooting](#-troubleshooting) section
-2. Search existing [GitHub Issues](https://github.com/yourusername/seolaxy-discord-bot/issues)
-3. Create a new issue with detailed information
+- **Documentation**: Check the `docs/` directory
+- **Issues**: Open an issue on GitHub
+- **Discord**: Join our community server
+- **Email**: Contact the development team
 
 ---
 
-**Happy botting! 🎉**
+**Made with ❤️ by the Seolaxy Team**
