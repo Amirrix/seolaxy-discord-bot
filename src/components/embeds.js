@@ -14,12 +14,18 @@ const USERS_PER_PAGE = 10;
  */
 function createJoinEmbed() {
   return new EmbedBuilder()
-    .setTitle("🚀 Join Us! | Pridružite Nam Se!")
+    .setTitle(
+      "🚀 Hello! There is only one step left: / Zdravo! Preostao je samo još jedan korak:"
+    )
     .setDescription(
-      "Welcome! To get started, you'll need to join by opening an account.\n" +
-        "When attempting to join, you'll need your Invoice Number – you can find it at the top of your invoice.\n\n" +
-        "Dobrodošli! Da biste započeli, potrebno je da se pridružite otvaranjem računa.\n" +
-        "Prilikom pokušaja pridruživanja, potrebno je da unesete svoj Broj Fakture (Invoice Number) – možete ga pronaći na vrhu svoje fakture."
+      "• Please open the PDF invoice that arrived via email.\n" +
+        '• On it you\'ll find "Invoice. No." in the top right that starts with "pi_".\n' +
+        '• Copy the entire text, including "pi_" and all characters that follow.\n' +
+        '• Click the "JOIN" button below, enter all data and copy that number into the invoice field.\n\n' +
+        "• Molim te otvori PDF račun koji je stigao putem emaila.\n" +
+        '• Na njemu ćeš gore desno pronaći "Invoice. No." koji počinje sa "pi_".\n' +
+        '• Kopiraj cijeli tekst, uključujući "pi_" i sve znakove koje slijede.\n' +
+        '• Klikni ispod na dugme "JOIN", upiši sve podatke i kopiraj taj broj u polje za račun.'
     )
     .setColor(0x00ae86)
     .setFooter({
