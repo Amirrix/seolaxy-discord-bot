@@ -18,7 +18,6 @@ function createJoinEmbed() {
     .setDescription(
       "Welcome! To get started, you'll need to join by opening an account.\n" +
         "When making a payment, you'll need your Invoice Number – you can find it at the top of your invoice.\n\n" +
-        "\n" +
         "Dobrodošli! Da biste započeli, potrebno je da se pridružite otvaranjem računa.\n" +
         "Prilikom uplate trebat će vam Broj Fakture (Invoice Number) – možete ga pronaći na vrhu svoje fakture."
     )
