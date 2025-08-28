@@ -17,9 +17,9 @@ function createJoinEmbed() {
     .setTitle("🚀 Join Us! | Pridružite Nam Se!")
     .setDescription(
       "Welcome! To get started, you'll need to join by opening an account.\n" +
-        "When making a payment, you'll need your Invoice Number – you can find it at the top of your invoice.\n\n" +
+        "When attempting to join, you'll need your Invoice Number – you can find it at the top of your invoice.\n\n" +
         "Dobrodošli! Da biste započeli, potrebno je da se pridružite otvaranjem računa.\n" +
-        "Prilikom uplate trebat će vam Broj Fakture (Invoice Number) – možete ga pronaći na vrhu svoje fakture."
+        "Prilikom pokušaja pridruživanja, potrebno je da unesete svoj Broj Fakture (Invoice Number) – možete ga pronaći na vrhu svoje fakture."
     )
     .setColor(0x00ae86)
     .setFooter({
