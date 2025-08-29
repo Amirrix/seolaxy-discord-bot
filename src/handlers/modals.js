@@ -34,27 +34,57 @@ async function handleJoinModal(interaction) {
     const member = interaction.member;
 
     // 1. Validate payment intent with Seolaxy API
-    const isInvoiceValid = await seolaxyApi.validatePaymentIntent(
+    const validationResult = await seolaxyApi.validatePaymentIntent(
       invoiceNumber
     );
 
-    // 2. Check if payment intent is already used (security check)
-    if (isInvoiceValid) {
-      const paymentIntentExists = await database.checkPaymentIntentExists(
-        invoiceNumber
+    // Handle validation errors with specific user feedback
+    if (!validationResult.success) {
+      let errorMessage;
+
+      switch (validationResult.error) {
+        case "already_enrolled":
+          errorMessage =
+            "❌ **Already Enrolled:** This purchase has already been used for Discord enrollment.";
+          break;
+        case "purchase_not_found":
+          errorMessage =
+            "❌ **Purchase Not Found:** No valid purchase found for the provided payment intent ID or invoice number. Please check your input and try again.";
+          break;
+        case "invalid_format":
+          errorMessage =
+            "❌ **Invalid Format:** Payment intent must start with 'pi' or invoice number must start with 'SM'. Please check your input.";
+          break;
+        case "configuration_error":
+        case "api_error":
+        case "network_error":
+        case "unexpected_response":
+        default:
+          errorMessage = `❌ **Service Error:** ${validationResult.message} Please try again later or contact an administrator.`;
+          break;
+      }
+
+      await interaction.editReply({
+        content: errorMessage,
+      });
+      return;
+    }
+
+    // 2. Check if payment intent is already used (security check) - only for successful validations
+    const paymentIntentExists = await database.checkPaymentIntentExists(
+      invoiceNumber
+    );
+
+    if (paymentIntentExists) {
+      logger.warn(
+        `Duplicate payment intent attempted by ${interaction.user.tag}: ${invoiceNumber}`
       );
 
-      if (paymentIntentExists) {
-        logger.warn(
-          `Duplicate payment intent attempted by ${interaction.user.tag}: ${invoiceNumber}`
-        );
-
-        await interaction.editReply({
-          content:
-            "❌ **Security Alert:** This payment intent has already been used for registration. Each payment intent can only be used once. If you believe this is an error, please contact an administrator.",
-        });
-        return;
-      }
+      await interaction.editReply({
+        content:
+          "❌ **Security Alert:** This payment intent has already been used for registration. Each payment intent can only be used once. If you believe this is an error, please contact an administrator.",
+      });
+      return;
     }
 
     // 3. Process user registration
@@ -75,7 +105,7 @@ async function handleJoinModal(interaction) {
     );
 
     // 4. Update users embed if user was saved successfully
-    if (registrationResult.saved && isInvoiceValid) {
+    if (registrationResult.saved && validationResult.success) {
       try {
         await updateUsersEmbed();
       } catch (embedError) {
@@ -88,7 +118,7 @@ async function handleJoinModal(interaction) {
     // 5. Send confirmation message
     const embed = createRegistrationSuccessEmbed({
       nickname: registrationResult.nickname,
-      isValid: isInvoiceValid,
+      isValid: validationResult.success,
       memberRoleName: registrationResult.memberRoleName,
       userLanguage: registrationResult.userLanguage,
     });

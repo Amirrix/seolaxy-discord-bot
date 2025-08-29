@@ -6,6 +6,54 @@
 const database = require("./database");
 const logger = require("../utils/logger");
 const ROLES = require("../constants/roles");
+const CHANNELS = require("../constants/channels");
+
+/**
+ * Send notification to staff about nickname length error
+ * @param {Object} userData - User data object
+ * @param {string} attemptedNickname - The nickname that was too long
+ * @param {Object} guild - Discord guild
+ */
+async function notifyStaffAboutNicknameError(
+  userData,
+  attemptedNickname,
+  guild
+) {
+  try {
+    // Get client instance from the module cache
+    const { client } = require("../index");
+    if (!client || !client.channels) {
+      logger.warn("Client not available for sending staff notification");
+      return;
+    }
+
+    const staffChannel = await client.channels.fetch(CHANNELS.STAFF_CHANNEL_ID);
+    if (!staffChannel) {
+      logger.error(
+        `Could not find staff channel with ID: ${CHANNELS.STAFF_CHANNEL_ID}`
+      );
+      return;
+    }
+
+    const message = `<@&${ROLES.STAFF}> 🚨 **Nickname Length Error**
+
+**User:** ${userData.discordUsername} (${userData.firstName} ${userData.lastName})
+**Attempted Nickname:** \`${attemptedNickname}\`
+**Length:** ${attemptedNickname.length} characters (max: 32)
+**Project:** ${userData.projectName}
+
+The nickname is too long and needs manual adjustment.`;
+
+    await staffChannel.send(message);
+    logger.info(
+      `Staff notified about nickname length error for user ${userData.discordUsername}`
+    );
+  } catch (error) {
+    logger.error(
+      `Error sending staff notification for nickname error: ${error.message}`
+    );
+  }
+}
 
 /**
  * Process user registration
@@ -50,6 +98,11 @@ async function processUserRegistration(userData, member, guild) {
       logger.warn(
         `Could not change nickname for ${userData.discordUsername}: ${error.message}`
       );
+
+      // Check if this is a nickname length error and notify staff
+      if (error.message && error.message.includes("BASE_TYPE_MAX_LENGTH")) {
+        await notifyStaffAboutNicknameError(userData, newNickname, guild);
+      }
     }
 
     // 3. Assign appropriate member role

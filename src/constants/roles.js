@@ -15,4 +15,5 @@ module.exports = {
   // Other roles
   MEMBER: "1409879830408859809", // Legacy member role
   UNVERIFIED: "1409929646610583652",
+  STAFF: "1409879667799887892",
 };

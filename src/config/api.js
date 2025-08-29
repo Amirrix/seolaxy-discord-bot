@@ -11,6 +11,6 @@ module.exports = {
   timeout: 10000, // 10 seconds timeout
 
   endpoints: {
-    validatePaymentIntent: "/payment-intent/validate",
+    enrollDiscord: "/purchase/enroll-discord",
   },
 };
