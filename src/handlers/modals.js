@@ -121,6 +121,7 @@ async function handleJoinModal(interaction) {
       isValid: validationResult.success,
       memberRoleName: registrationResult.memberRoleName,
       userLanguage: registrationResult.userLanguage,
+      inviteInfo: registrationResult.inviteInfo,
     });
 
     await interaction.editReply({

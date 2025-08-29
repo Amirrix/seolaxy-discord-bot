@@ -40,7 +40,7 @@ function createJoinEmbed() {
  * @returns {EmbedBuilder} - Success embed
  */
 function createRegistrationSuccessEmbed(data) {
-  const { nickname, isValid, memberRoleName, userLanguage } = data;
+  const { nickname, isValid, memberRoleName, userLanguage, inviteInfo } = data;
 
   let memberStatusText = "❌ Invoice validation failed";
   if (isValid) {
@@ -57,7 +57,8 @@ function createRegistrationSuccessEmbed(data) {
       nickname,
       memberStatusText,
       isValid,
-      userLanguage
+      userLanguage,
+      inviteInfo
     );
   }
 }
@@ -74,15 +75,24 @@ function createEnglishSuccessEmbed(
   nickname,
   memberStatusText,
   isValid,
-  userLanguage
+  userLanguage,
+  inviteInfo
 ) {
   const channels = require("../constants/channels");
 
   let description = "Congratulations, registration successful.";
 
   if (isValid && userLanguage === "english") {
-    description +=
-      "\n\nPlease click on next (bottom right, white arrow in purple circle)";
+    if (inviteInfo && inviteInfo.inviteSent) {
+      description +=
+        "\n\n🎉 **Welcome to the English community!**\n📨 **Check your DMs** - You've received a personal invite link to the SEOLAXY (EN) server!\n\n⚠️ The invite link is for one-time use only and expires in 24 hours.";
+    } else if (inviteInfo && inviteInfo.inviteUrl && !inviteInfo.inviteSent) {
+      description +=
+        "\n\n🎉 **Welcome to the English community!**\n⚠️ We couldn't send you a DM, but your invite link was created. Please contact an administrator.";
+    } else {
+      description +=
+        "\n\n🎉 **Welcome to the English community!**\n⚠️ There was an issue creating your invite link. Please contact an administrator.";
+    }
   }
 
   return new EmbedBuilder()

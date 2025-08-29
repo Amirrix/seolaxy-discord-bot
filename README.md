@@ -147,6 +147,7 @@ Create a `.env` file in the root directory with the following variables:
 DISCORD_TOKEN=your_bot_token_here
 CLIENT_ID=your_client_id_here
 GUILD_ID=your_guild_id_here
+ENGLISH_SERVER_ID=your_english_server_id_here
 
 # Environment
 NODE_ENV=development
@@ -167,8 +168,9 @@ SEOLAXY_API_BEARER_TOKEN=your_seolaxy_api_bearer_token_here
 ### Environment Variables Explained
 
 - **DISCORD_TOKEN**: Your bot's token from Discord Developer Portal
-- **CLIENT_ID**: Your application's client ID (also called Application ID)
-- **GUILD_ID**: Your Discord server's ID where you want to test the bot
+- **CLIENT_ID**: Your application's client ID (also called Application ID)  
+- **GUILD_ID**: Your Discord server's ID where you want to test the bot (main server)
+- **ENGLISH_SERVER_ID**: Your English Discord server's ID for verified English users
 - **NODE_ENV**: Environment mode (`development` or `production`)
 - **LOG_LEVEL**: Logging level (`error`, `warn`, `info`, `debug`)
 - **DB_***: Database connection credentials for your MySQL server
