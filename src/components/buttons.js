@@ -93,7 +93,7 @@ function createSecondServerJoinButton() {
       .setCustomId("second_server_join")
       .setLabel("Join")
       .setStyle(ButtonStyle.Success)
-      .setEmoji("🚀")
+      .setEmoji("🔑")
   );
 
   return row;
