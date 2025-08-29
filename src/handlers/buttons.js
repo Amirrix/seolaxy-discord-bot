@@ -178,6 +178,141 @@ async function updateUsersEmbed(page = currentUsersPage) {
 }
 
 /**
+ * Handle second server join button click
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleSecondServerJoinButton(interaction) {
+  const { EmbedBuilder } = require("discord.js");
+  const database = require("../services/database");
+  const ROLES = require("../constants/roles");
+
+  await interaction.deferReply({ flags: 64 }); // Ephemeral reply
+
+  try {
+    const discordId = interaction.user.id;
+    const member = interaction.member;
+    const guild = interaction.guild;
+
+    logger.info(`Second server join button clicked by ${interaction.user.tag}`);
+
+    // Look up user in database
+    const userData = await database.getUserByDiscordId(discordId);
+
+    if (!userData) {
+      await interaction.editReply({
+        content:
+          "❌ **Not Found:** You need to be verified on the main Seolaxy server first. Please complete registration there before joining this server.",
+      });
+      return;
+    }
+
+    logger.info(
+      `Processing second server setup for verified user: ${userData.discord_username}`
+    );
+
+    // Set up nickname
+    const newNickname = `${userData.first_name} ${userData.last_name} [${userData.project_name}]`;
+    try {
+      await member.setNickname(newNickname);
+      logger.info(
+        `Set nickname for ${userData.discord_username} to: ${newNickname}`
+      );
+    } catch (error) {
+      logger.warn(
+        `Could not set nickname for ${userData.discord_username}: ${error.message}`
+      );
+
+      // Check if this is a nickname length error
+      if (error.message && error.message.includes("BASE_TYPE_MAX_LENGTH")) {
+        logger.error(
+          `Nickname too long for ${userData.discord_username}: ${newNickname}`
+        );
+      }
+    }
+
+    // Handle role assignment
+    const unverifiedRole = guild.roles.cache.get(
+      ROLES.SECOND_SERVER_UNVERIFIED
+    );
+    const verifiedRole = guild.roles.cache.get(ROLES.SECOND_SERVER_VERIFIED);
+
+    let roleResult = { success: false, message: "" };
+
+    try {
+      // Remove unverified role if user has it
+      if (
+        unverifiedRole &&
+        member.roles.cache.has(ROLES.SECOND_SERVER_UNVERIFIED)
+      ) {
+        await member.roles.remove(unverifiedRole);
+        logger.info(
+          `Removed unverified role from ${userData.discord_username}`
+        );
+      }
+
+      // Add verified role
+      if (verifiedRole) {
+        await member.roles.add(verifiedRole);
+        logger.info(`Added verified role to ${userData.discord_username}`);
+        roleResult.success = true;
+        roleResult.message = "✅ Verified Member";
+      } else {
+        logger.error("Verified role not found in second server");
+        roleResult.message = "⚠️ Role assignment failed";
+      }
+    } catch (roleError) {
+      logger.error(
+        `Error managing roles for ${userData.discord_username}: ${roleError.message}`
+      );
+      roleResult.message = "⚠️ Role assignment failed";
+    }
+
+    // Send success message
+    const embed = new EmbedBuilder()
+      .setTitle("🎉 Welcome to SEOLAXY (EN)!")
+      .setDescription(
+        `Welcome **${userData.first_name} ${userData.last_name}**! Your English server setup is complete.`
+      )
+      .addFields(
+        {
+          name: "Nickname",
+          value:
+            newNickname.length <= 32
+              ? newNickname
+              : "Could not set nickname (too long)",
+          inline: true,
+        },
+        {
+          name: "Status",
+          value: roleResult.message,
+          inline: true,
+        },
+        {
+          name: "Project",
+          value: userData.project_name || "Not specified",
+          inline: true,
+        }
+      )
+      .setColor(roleResult.success ? 0x00ff00 : 0xff9900)
+      .setTimestamp();
+
+    await interaction.editReply({
+      embeds: [embed],
+    });
+
+    logger.info(
+      `Second server setup completed for ${userData.discord_username}`
+    );
+  } catch (error) {
+    logger.error(`Error in second server join: ${error.message}`);
+    await interaction.editReply({
+      content:
+        "❌ There was an error setting up your account. Please contact an administrator.",
+    });
+  }
+}
+
+/**
  * Main button handler router
  * @param {Interaction} interaction - Discord interaction
  */
@@ -185,6 +320,8 @@ async function handleButton(interaction) {
   try {
     if (interaction.customId === "join_button") {
       await handleJoinButton(interaction);
+    } else if (interaction.customId === "second_server_join") {
+      await handleSecondServerJoinButton(interaction);
     } else if (interaction.customId === "users_export_csv") {
       await handleUsersExportButton(interaction);
     } else if (interaction.customId.startsWith("users_")) {

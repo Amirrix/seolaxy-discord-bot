@@ -83,8 +83,25 @@ function createUserInterfaceButtons(totalPages, page = 1) {
   return components;
 }
 
+/**
+ * Create second server join button
+ * @returns {ActionRowBuilder} - Button row
+ */
+function createSecondServerJoinButton() {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("second_server_join")
+      .setLabel("Join")
+      .setStyle(ButtonStyle.Success)
+      .setEmoji("🚀")
+  );
+
+  return row;
+}
+
 module.exports = {
   createJoinButton,
+  createSecondServerJoinButton,
   createPaginationButtons,
   createExportButton,
   createUserInterfaceButtons,

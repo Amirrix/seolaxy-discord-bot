@@ -26,8 +26,14 @@ const {
 const { handleModal } = require("./handlers/modals");
 
 // Components
-const { createJoinEmbed } = require("./components/embeds");
-const { createJoinButton } = require("./components/buttons");
+const {
+  createJoinEmbed,
+  createSecondServerJoinEmbed,
+} = require("./components/embeds");
+const {
+  createJoinButton,
+  createSecondServerJoinButton,
+} = require("./components/buttons");
 
 // Utilities
 const logger = require("./utils/logger");
@@ -106,6 +112,20 @@ async function sendJoinMessage(channel) {
   });
 }
 
+/**
+ * Send second server join message to specified channel
+ * @param {TextChannel} channel - Discord channel to send message to
+ */
+async function sendSecondServerJoinMessage(channel) {
+  const embed = createSecondServerJoinEmbed();
+  const row = createSecondServerJoinButton();
+
+  await channel.send({
+    embeds: [embed],
+    components: [row],
+  });
+}
+
 // Event: Bot is ready
 client.once(Events.ClientReady, async (readyClient) => {
   logger.info(`🎉 Bot is ready! Logged in as ${readyClient.user.tag}`);
@@ -146,6 +166,64 @@ client.once(Events.ClientReady, async (readyClient) => {
 
   // Initialize users embed in users channel
   await updateUsersEmbed();
+
+  // Initialize second server if configured
+  if (channels.SECOND_SERVER_ID && channels.SECOND_SERVER_JOIN_CHANNEL_ID) {
+    try {
+      const secondServer = await client.guilds.fetch(channels.SECOND_SERVER_ID);
+      if (secondServer) {
+        logger.info(`📡 Found second server: ${secondServer.name}`);
+
+        const secondServerJoinChannel = await secondServer.channels.fetch(
+          channels.SECOND_SERVER_JOIN_CHANNEL_ID
+        );
+        if (secondServerJoinChannel) {
+          // Clean up previous bot messages
+          try {
+            const messages = await secondServerJoinChannel.messages.fetch({
+              limit: 10,
+            });
+            const botMessages = messages.filter(
+              (msg) => msg.author.id === client.user.id
+            );
+
+            for (const message of botMessages.values()) {
+              try {
+                await message.delete();
+                logger.info(`🗑️ Deleted previous bot message in second server`);
+              } catch (deleteError) {
+                logger.warn(
+                  `Could not delete message in second server: ${deleteError.message}`
+                );
+              }
+            }
+          } catch (fetchError) {
+            logger.warn(
+              `Could not fetch messages for cleanup in second server: ${fetchError.message}`
+            );
+          }
+
+          // Send join message to second server
+          await sendSecondServerJoinMessage(secondServerJoinChannel);
+          logger.info(
+            `✅ Join message sent to second server channel #${secondServerJoinChannel.name}`
+          );
+        } else {
+          logger.error(
+            `❌ Could not find join channel in second server with ID: ${channels.SECOND_SERVER_JOIN_CHANNEL_ID}`
+          );
+        }
+      } else {
+        logger.error(
+          `❌ Could not find second server with ID: ${channels.SECOND_SERVER_ID}`
+        );
+      }
+    } catch (error) {
+      logger.error(`❌ Error initializing second server: ${error.message}`);
+    }
+  } else {
+    logger.info("📝 Second server not configured, skipping initialization");
+  }
 });
 
 // Event: Handle interactions (commands, buttons, modals)

@@ -169,6 +169,37 @@ async function checkPaymentIntentExists(invoiceNumber) {
 }
 
 /**
+ * Get user by Discord ID
+ * @param {string} discordId - Discord user ID
+ * @returns {Object|null} - User object or null if not found
+ */
+async function getUserByDiscordId(discordId) {
+  try {
+    if (!dbPool) {
+      logger.warn("Database not available, cannot lookup user");
+      return null;
+    }
+
+    const [rows] = await dbPool.execute(
+      "SELECT * FROM users WHERE discord_id = ? LIMIT 1",
+      [discordId]
+    );
+
+    if (rows.length > 0) {
+      const user = rows[0];
+      logger.info(`Found user in database: ${user.discord_username}`);
+      return user;
+    } else {
+      logger.info(`No user found in database for Discord ID: ${discordId}`);
+      return null;
+    }
+  } catch (error) {
+    logger.error(`Error looking up user by Discord ID: ${error.message}`);
+    return null;
+  }
+}
+
+/**
  * Get database pool instance
  * @returns {mysql.Pool|null} - Database pool or null
  */
@@ -181,5 +212,6 @@ module.exports = {
   saveUser,
   fetchAllUsers,
   checkPaymentIntentExists,
+  getUserByDiscordId,
   getPool,
 };

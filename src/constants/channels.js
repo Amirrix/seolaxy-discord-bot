@@ -12,4 +12,5 @@ module.exports = {
 
   // Second server (SEOLAXY EN) - from environment variable
   SECOND_SERVER_ID: process.env.ENGLISH_SERVER_ID,
+  SECOND_SERVER_JOIN_CHANNEL_ID: "1410998600678248569",
 };
