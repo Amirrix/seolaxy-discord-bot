@@ -57,6 +57,8 @@ async function validatePaymentIntent(userInput) {
     }
 
     logger.info(`Sending PATCH request with body:`, requestBody);
+    logger.info(`Request body JSON:`, JSON.stringify(requestBody, null, 2));
+    console.log("🔍 API Request Body:", JSON.stringify(requestBody, null, 2));
 
     const response = await fetch(url, {
       method: "PATCH",
