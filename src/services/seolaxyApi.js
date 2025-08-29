@@ -86,6 +86,16 @@ async function validatePaymentIntent(userInput) {
         };
       }
 
+      // Handle 404 Not Found specifically (invoice/payment intent not found)
+      if (response.status === 404) {
+        return {
+          success: false,
+          error: "purchase_not_found",
+          message:
+            "No purchase found for the provided payment intent ID or invoice number.",
+        };
+      }
+
       return {
         success: false,
         error: "api_error",
