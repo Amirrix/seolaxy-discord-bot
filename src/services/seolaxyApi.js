@@ -75,6 +75,17 @@ async function validatePaymentIntent(userInput) {
       logger.error(
         `API request failed with status: ${response.status} ${response.statusText}`
       );
+
+      // Handle 409 Conflict specifically (user already enrolled)
+      if (response.status === 409) {
+        return {
+          success: false,
+          error: "already_enrolled",
+          message:
+            "This purchase has already been used for Discord enrollment.",
+        };
+      }
+
       return {
         success: false,
         error: "api_error",
