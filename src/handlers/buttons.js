@@ -188,8 +188,6 @@ async function handleSecondServerJoinButton(interaction) {
   const discordConfig = require("../config/discord");
   const { client } = require("../index");
 
-  await interaction.deferReply({ flags: 64 }); // Ephemeral reply
-
   try {
     const discordId = interaction.user.id;
     const member = interaction.member;
@@ -197,7 +195,7 @@ async function handleSecondServerJoinButton(interaction) {
 
     logger.info(`Second server join button clicked by ${interaction.user.tag}`);
 
-    // Look up user in database
+    // Look up user in database BEFORE deferring reply
     const userData = await database.getUserByDiscordId(discordId);
 
     if (!userData) {
@@ -211,6 +209,9 @@ async function handleSecondServerJoinButton(interaction) {
       await interaction.showModal(modal);
       return;
     }
+
+    // User exists - now we can defer the reply for the rest of the process
+    await interaction.deferReply({ flags: 64 }); // Ephemeral reply
 
     logger.info(
       `Processing second server setup for verified user: ${userData.discord_username}`
