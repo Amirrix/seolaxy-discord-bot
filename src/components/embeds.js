@@ -9,29 +9,51 @@ const database = require("../services/database");
 const USERS_PER_PAGE = 10;
 
 /**
- * Create join message embed
- * @returns {EmbedBuilder} - Join message embed
+ * Create English join message embed
+ * @returns {EmbedBuilder} - English join message embed
  */
-function createJoinEmbed() {
+function createEnglishJoinEmbed() {
   return new EmbedBuilder()
-    .setTitle(
-      "🚀 Hello! There is only one step left: / Zdravo! Preostao je samo još jedan korak:"
-    )
+    .setTitle("🚀 Hello! There is only one step left:")
     .setDescription(
       "• Please open the PDF invoice that arrived via email.\n" +
         '• On it you\'ll find "Invoice. No." in the top right that starts with "pi_".\n' +
         '• Copy the entire text, including "pi_" and all characters that follow.\n' +
-        '• Click the "JOIN" button below, enter all data and copy that number into the invoice field.\n\n' +
-        "• Molim te otvori PDF račun koji je stigao putem emaila.\n" +
+        '• Click the "JOIN" button below, enter all data and copy that number into the invoice field.'
+    )
+    .setColor(0x00ae86)
+    .setFooter({
+      text: "📌 Click the button below to join!",
+    })
+    .setTimestamp();
+}
+
+/**
+ * Create Bosnian join message embed
+ * @returns {EmbedBuilder} - Bosnian join message embed
+ */
+function createBosnianJoinEmbed() {
+  return new EmbedBuilder()
+    .setTitle("🚀 Zdravo! Preostao je samo još jedan korak:")
+    .setDescription(
+      "• Molim te otvori PDF račun koji je stigao putem emaila.\n" +
         '• Na njemu ćeš gore desno pronaći "Invoice. No." koji počinje sa "pi_".\n' +
         '• Kopiraj cijeli tekst, uključujući "pi_" i sve znakove koje slijede.\n' +
         '• Klikni ispod na dugme "JOIN", upiši sve podatke i kopiraj taj broj u polje za račun.'
     )
     .setColor(0x00ae86)
     .setFooter({
-      text: "📌 Click the button below to join! | Kliknite na dugme ispod da se pridružite!",
+      text: "📌 Kliknite na dugme ispod da se pridružite!",
     })
     .setTimestamp();
+}
+
+/**
+ * Create join message embed (main server - Bosnian)
+ * @returns {EmbedBuilder} - Join message embed
+ */
+function createJoinEmbed() {
+  return createBosnianJoinEmbed();
 }
 
 /**
@@ -149,11 +171,11 @@ function createBosnianSuccessEmbed(nickname, memberStatusText) {
 
 /**
  * Create join embed for second server (English server)
- * Uses the same embed as main server to maintain consistency
+ * Uses English-only content for English server
  * @returns {EmbedBuilder} - Second server join embed
  */
 function createSecondServerJoinEmbed() {
-  return createJoinEmbed();
+  return createEnglishJoinEmbed();
 }
 
 /**
@@ -220,6 +242,8 @@ async function generateUsersEmbed(page = 1) {
 
 module.exports = {
   createJoinEmbed,
+  createEnglishJoinEmbed,
+  createBosnianJoinEmbed,
   createRegistrationSuccessEmbed,
   createSecondServerJoinEmbed,
   generateUsersEmbed,
