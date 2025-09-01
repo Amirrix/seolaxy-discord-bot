@@ -149,29 +149,11 @@ function createBosnianSuccessEmbed(nickname, memberStatusText) {
 
 /**
  * Create join embed for second server (English server)
+ * Uses the same embed as main server to maintain consistency
  * @returns {EmbedBuilder} - Second server join embed
  */
 function createSecondServerJoinEmbed() {
-  return new EmbedBuilder()
-    .setTitle("🎉 Welcome to SEOLAXY (EN)!")
-    .setDescription(
-      `Welcome to the English-speaking Seolaxy community! 
-
-**🚀 Ready to get started?**
-
-Click the **Join** button below and we'll automatically:
-✅ Set up your nickname with your name and project
-✅ Give you verified member access
-✅ Unlock all channels and features
-
-**📋 Your Information**
-We'll use the details from your verified registration on the main server to set everything up perfectly for you.
-
-**⚡ One Click Setup**
-No forms to fill out - just click Join and you're ready to go!`
-    )
-    .setColor(0x00ff00)
-    .setTimestamp();
+  return createJoinEmbed();
 }
 
 /**

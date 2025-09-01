@@ -201,101 +201,14 @@ async function handleSecondServerJoinButton(interaction) {
     const userData = await database.getUserByDiscordId(discordId);
 
     if (!userData) {
-      // User not found in database - send them invite to main server
+      // User not found in database - show registration modal like main server
       logger.info(
-        `User ${interaction.user.tag} not found in database, sending main server invite`
+        `User ${interaction.user.tag} not found in database, showing registration modal`
       );
 
-      try {
-        // Get main server and create invite
-        const mainServerId = discordConfig.bot.guildId; // Main server ID from env
-        const mainServer = await client.guilds.fetch(mainServerId);
-
-        if (mainServer) {
-          // Find a suitable channel to create invite from
-          const textChannel = mainServer.channels.cache.find(
-            (channel) =>
-              channel.type === 0 &&
-              channel
-                .permissionsFor(mainServer.members.me)
-                .has(["CREATE_INSTANT_INVITE"])
-          );
-
-          if (textChannel) {
-            // Create invite to main server
-            const invite = await textChannel.createInvite({
-              maxAge: 86400, // 24 hours
-              maxUses: 1,
-              unique: true,
-              reason: `Invite for ${interaction.user.tag} to complete verification on main server`,
-            });
-
-            // Send DM with invite
-            const dmMessage = `🎯 **Join the Main Seolaxy Server First!**
-
-Hi there! It looks like you haven't completed verification on the main Seolaxy server yet.
-
-**🔗 Your Personal Invite to Main Server:**
-${invite.url}
-
-**📋 What to do:**
-1. Click the link above to join the main Seolaxy server
-2. Complete the registration process there
-3. Once verified, you'll automatically get an invite to this English server
-
-**⏰ This invite expires in 24 hours and is for one-time use only.**
-
-Welcome to the Seolaxy community! 🚀`;
-
-            try {
-              await interaction.user.send(dmMessage);
-
-              await interaction.editReply({
-                content:
-                  "📨 **Check Your DMs!** I've sent you a personal invite link to the main Seolaxy server where you need to complete verification first.",
-              });
-
-              logger.info(
-                `Successfully sent main server invite DM to ${interaction.user.tag}`
-              );
-            } catch (dmError) {
-              logger.warn(
-                `Could not send DM to ${interaction.user.tag}: ${dmError.message}`
-              );
-
-              // Fallback - show invite in the ephemeral reply
-              await interaction.editReply({
-                content: `❌ **Not Verified Yet!**
-                
-You need to join and complete verification on the main Seolaxy server first.
-
-**🔗 Join Main Server:** ${invite.url}
-
-Complete registration there, then return here to join the English community!
-
-⚠️ *I couldn't DM you, so here's your personal invite link. This expires in 24 hours.*`,
-              });
-            }
-          } else {
-            throw new Error(
-              "No suitable channel found in main server to create invite"
-            );
-          }
-        } else {
-          throw new Error("Could not access main server");
-        }
-      } catch (inviteError) {
-        logger.error(
-          `Error creating main server invite for ${interaction.user.tag}: ${inviteError.message}`
-        );
-
-        // Fallback to generic message
-        await interaction.editReply({
-          content:
-            "❌ **Not Found:** You need to be verified on the main Seolaxy server first. Please complete registration there before joining this server.",
-        });
-      }
-
+      // Show the same registration modal as the main server
+      const modal = createRegistrationModal();
+      await interaction.showModal(modal);
       return;
     }
 

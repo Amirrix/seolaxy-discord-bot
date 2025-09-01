@@ -104,8 +104,15 @@ async function handleJoinModal(interaction) {
       guild
     );
 
-    // 4. Update users embed if user was saved successfully
-    if (registrationResult.saved && validationResult.success) {
+    // 4. Update users embed if user was saved successfully (only for main server)
+    const CHANNELS = require("../constants/channels");
+    const isEnglishServer = guild.id === CHANNELS.SECOND_SERVER_ID;
+
+    if (
+      registrationResult.saved &&
+      validationResult.success &&
+      !isEnglishServer
+    ) {
       try {
         await updateUsersEmbed();
       } catch (embedError) {
@@ -113,6 +120,10 @@ async function handleJoinModal(interaction) {
           `Error updating users embed after registration: ${embedError.message}`
         );
       }
+    } else if (isEnglishServer) {
+      logger.info(
+        `User registered on English server - skipping main server users embed update`
+      );
     }
 
     // 5. Send confirmation message

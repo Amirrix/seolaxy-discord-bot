@@ -210,11 +210,14 @@ async function processUserRegistration(userData, member, guild) {
     result.memberRoleName = roleResult.roleName;
     result.userLanguage = roleResult.userLanguage;
 
-    // 4. Handle English users - generate invite and send DM
+    // 4. Handle English users - generate invite and send DM (only if registering from main server)
+    const isEnglishServer = guild.id === CHANNELS.SECOND_SERVER_ID;
+
     if (
       result.userLanguage === "english" &&
       result.saved &&
-      roleResult.success
+      roleResult.success &&
+      !isEnglishServer // Don't send invite if already on English server
     ) {
       logger.info(
         `Processing English user invite for ${userData.discordUsername}`
@@ -231,6 +234,10 @@ async function processUserRegistration(userData, member, guild) {
           `Invite processing had issues for ${userData.discordUsername}: ${inviteResult.error}`
         );
       }
+    } else if (isEnglishServer && result.userLanguage === "english") {
+      logger.info(
+        `User ${userData.discordUsername} registered directly on English server - no invite needed`
+      );
     }
 
     return result;
@@ -241,7 +248,7 @@ async function processUserRegistration(userData, member, guild) {
 }
 
 /**
- * Assign appropriate member role based on language role
+ * Assign appropriate member role based on language role or server
  * @param {Object} member - Discord guild member
  * @param {Object} guild - Discord guild
  * @returns {Object} - Role assignment result
@@ -250,6 +257,45 @@ async function assignMemberRole(member, guild) {
   const result = { success: false, roleName: null, userLanguage: null };
 
   try {
+    // Check if user is registering directly on the English server
+    const isEnglishServer = guild.id === CHANNELS.SECOND_SERVER_ID;
+
+    if (isEnglishServer) {
+      // User is registering directly on English server
+      const unverifiedRole = guild.roles.cache.get(
+        ROLES.SECOND_SERVER_UNVERIFIED
+      );
+      const verifiedRole = guild.roles.cache.get(ROLES.SECOND_SERVER_VERIFIED);
+
+      // Remove unverified role if user has it
+      if (
+        unverifiedRole &&
+        member.roles.cache.has(ROLES.SECOND_SERVER_UNVERIFIED)
+      ) {
+        await member.roles.remove(unverifiedRole);
+        logger.info(
+          `Removed unverified role from ${member.user.tag} on English server`
+        );
+      }
+
+      // Add verified role
+      if (verifiedRole) {
+        await member.roles.add(verifiedRole);
+        logger.info(
+          `Added verified role to ${member.user.tag} on English server`
+        );
+        result.success = true;
+        result.roleName = "English Server Verified Member";
+        result.userLanguage = "english";
+      } else {
+        logger.error("Verified role not found on English server");
+        result.roleName = "Role assignment failed";
+      }
+
+      return result;
+    }
+
+    // Main server logic
     const unverifiedRole = guild.roles.cache.get(ROLES.UNVERIFIED);
     let memberRole;
 
