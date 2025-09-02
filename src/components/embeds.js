@@ -112,8 +112,7 @@ function createEnglishSuccessEmbed(
       description +=
         "\n\n🎉 **Welcome to the English community!**\n⚠️ We couldn't send you a DM, but your invite link was created. Please contact an administrator.";
     } else {
-      description +=
-        "\n\n🎉 **Welcome to the English community!**\n⚠️ There was an issue creating your invite link. Please contact an administrator.";
+      description += "\n\n🎉 **Welcome to the English community!**\n";
     }
   }
 
