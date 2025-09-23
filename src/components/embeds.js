@@ -38,7 +38,7 @@ function createBosnianJoinEmbed() {
     .setDescription(
       "• Molim te otvori PDF račun koji je stigao putem emaila.\n" +
         '• Na njemu ćeš gore desno pronaći "Invoice. No." koji počinje sa "pi_".\n' +
-        '• Kopiraj cijeli tekst, uključujući "pi_" i sve znakove koje slijede.\n' +
+        '• Kopiraj cijeli tekst, uključujući "pi_" ili "SM-" i sve znakove koje slijede.\n' +
         '• Klikni ispod na dugme "JOIN", upiši sve podatke i kopiraj taj broj u polje za račun.'
     )
     .setColor(0x00ae86)
