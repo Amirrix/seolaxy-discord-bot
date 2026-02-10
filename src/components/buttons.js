@@ -99,10 +99,41 @@ function createSecondServerJoinButton() {
   return row;
 }
 
+/**
+ * Create subscribe button (for main server)
+ * @returns {ActionRowBuilder} - Subscribe button row
+ */
+function createSubscribeButton() {
+  const subscribeButton = new ButtonBuilder()
+    .setCustomId("subscribe_button")
+    .setLabel("Subscribe")
+    .setEmoji("💳")
+    .setStyle(ButtonStyle.Primary);
+
+  return new ActionRowBuilder().addComponents(subscribeButton);
+}
+
+/**
+ * Create subscribe button for English server
+ * @returns {ActionRowBuilder} - Subscribe button row
+ */
+function createSecondServerSubscribeButton() {
+  const subscribeButton = new ButtonBuilder()
+    .setCustomId("second_server_subscribe")
+    .setLabel("Subscribe")
+    .setEmoji("💳")
+    .setStyle(ButtonStyle.Primary);
+
+  return new ActionRowBuilder().addComponents(subscribeButton);
+}
+
 module.exports = {
   createJoinButton,
   createSecondServerJoinButton,
   createPaginationButtons,
   createExportButton,
   createUserInterfaceButtons,
+  // Subscription buttons
+  createSubscribeButton,
+  createSecondServerSubscribeButton,
 };

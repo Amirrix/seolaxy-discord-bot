@@ -3,11 +3,18 @@
  * Handles Discord button interaction events
  */
 
+const { EmbedBuilder } = require("discord.js");
 const logger = require("../utils/logger");
 const { createRegistrationModal } = require("../components/modals");
 const csvExport = require("../services/csvExport");
 const database = require("../services/database");
-const { generateUsersEmbed, USERS_PER_PAGE } = require("../components/embeds");
+const stripeService = require("../services/stripeService");
+const subscriptionService = require("../services/subscriptionService");
+const {
+  generateUsersEmbed,
+  USERS_PER_PAGE,
+  createSubscriptionCheckoutEmbed,
+} = require("../components/embeds");
 const { createUserInterfaceButtons } = require("../components/buttons");
 const channels = require("../constants/channels");
 
@@ -24,7 +31,7 @@ function resetUsersEmbedState() {
 }
 
 /**
- * Handle join button click
+ * Handle join button click (legacy - redirects to subscribe)
  * @param {Interaction} interaction - Discord interaction
  */
 async function handleJoinButton(interaction) {
@@ -32,6 +39,111 @@ async function handleJoinButton(interaction) {
 
   const modal = createRegistrationModal();
   await interaction.showModal(modal);
+}
+
+/**
+ * Handle subscribe button click
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleSubscribeButton(interaction) {
+  const discordId = interaction.user.id;
+  const discordUsername = interaction.user.tag;
+
+  logger.info(`Subscribe button clicked by ${discordUsername} (${discordId})`);
+
+  try {
+    await interaction.deferReply({ flags: 64 }); // Ephemeral reply
+
+    // Check if user already has an active subscription
+    const existingUser = await database.getUserByDiscordId(discordId);
+
+    if (
+      existingUser &&
+      (existingUser.subscription_status === "active" ||
+        existingUser.subscription_status === "trialing")
+    ) {
+      // Check if it's a legacy user still in grace period
+      if (
+        existingUser.is_legacy_user &&
+        existingUser.subscription_status === "trialing"
+      ) {
+        // Allow legacy users to subscribe before grace period ends
+        logger.info(
+          `Legacy user ${discordUsername} subscribing before grace period ends`
+        );
+      } else {
+        await interaction.editReply({
+          content:
+            "✅ Vec imate aktivnu pretplatu! Ako imate problema sa pristupom, molimo kontaktirajte osoblje.",
+        });
+        return;
+      }
+    }
+
+    // Check if user already has a pending checkout
+    if (subscriptionService.hasPendingCheckout(discordId)) {
+      await interaction.editReply({
+        content:
+          "⏳ Vec imate aktivnu sesiju za placanje. Molimo zavrsiste placanje ili sacekajte nekoliko minuta prije ponovnog pokusaja.",
+      });
+      return;
+    }
+
+    // Get user email if available
+    const userEmail = existingUser?.email || null;
+
+    // Create Stripe checkout session
+    const checkoutResult = await stripeService.createCheckoutSession(
+      discordId,
+      discordUsername,
+      userEmail
+    );
+
+    if (!checkoutResult.success) {
+      logger.error(
+        `Failed to create checkout session for ${discordUsername}: ${checkoutResult.error}`
+      );
+      await interaction.editReply({
+        content:
+          "❌ Nije moguce kreirati sesiju za placanje. Molimo pokusajte ponovo kasnije ili kontaktirajte osoblje.",
+      });
+      return;
+    }
+
+    // Trigger fast polling for this user
+    subscriptionService.triggerFastPolling(discordId, checkoutResult.sessionId);
+
+    // Create checkout embed with link
+    const checkoutEmbed = createSubscriptionCheckoutEmbed(checkoutResult.url);
+
+    await interaction.editReply({
+      embeds: [checkoutEmbed],
+    });
+
+    logger.info(
+      `Checkout session created for ${discordUsername}: ${checkoutResult.sessionId}`
+    );
+  } catch (error) {
+    logger.error(`Error handling subscribe button: ${error.message}`);
+
+    try {
+      await interaction.editReply({
+        content:
+          "❌ Doslo je do greske prilikom obrade vaseg zahtjeva. Molimo pokusajte ponovo kasnije.",
+      });
+    } catch (editError) {
+      logger.error(`Error sending error message: ${editError.message}`);
+    }
+  }
+}
+
+/**
+ * Handle second server subscribe button click
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleSecondServerSubscribeButton(interaction) {
+  // Same logic as main server subscribe
+  await handleSubscribeButton(interaction);
 }
 
 /**
@@ -327,8 +439,12 @@ async function handleButton(interaction) {
   try {
     if (interaction.customId === "join_button") {
       await handleJoinButton(interaction);
+    } else if (interaction.customId === "subscribe_button") {
+      await handleSubscribeButton(interaction);
     } else if (interaction.customId === "second_server_join") {
       await handleSecondServerJoinButton(interaction);
+    } else if (interaction.customId === "second_server_subscribe") {
+      await handleSecondServerSubscribeButton(interaction);
     } else if (interaction.customId === "users_export_csv") {
       await handleUsersExportButton(interaction);
     } else if (interaction.customId.startsWith("users_")) {
@@ -345,6 +461,8 @@ module.exports = {
   handleButton,
   updateUsersEmbed,
   handleJoinButton,
+  handleSubscribeButton,
+  handleSecondServerSubscribeButton,
   handleUsersPaginationButton,
   handleUsersExportButton,
   resetUsersEmbedState,

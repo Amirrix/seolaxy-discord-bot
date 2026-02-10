@@ -15,6 +15,7 @@ const channels = require("./constants/channels");
 
 // Services
 const database = require("./services/database");
+const subscriptionService = require("./services/subscriptionService");
 
 // Handlers
 const { handleCommand } = require("./handlers/commands");
@@ -29,10 +30,14 @@ const { handleModal } = require("./handlers/modals");
 const {
   createJoinEmbed,
   createSecondServerJoinEmbed,
+  createSubscribeEmbed,
+  createEnglishSubscribeEmbed,
 } = require("./components/embeds");
 const {
   createJoinButton,
   createSecondServerJoinButton,
+  createSubscribeButton,
+  createSecondServerSubscribeButton,
 } = require("./components/buttons");
 
 // Utilities
@@ -99,12 +104,12 @@ async function cleanupPreviousMessages(channelIds) {
 }
 
 /**
- * Send join message to specified channel
+ * Send subscribe message to specified channel (main server)
  * @param {TextChannel} channel - Discord channel to send message to
  */
-async function sendJoinMessage(channel) {
-  const embed = createJoinEmbed();
-  const row = createJoinButton();
+async function sendSubscribeMessage(channel) {
+  const embed = createSubscribeEmbed();
+  const row = createSubscribeButton();
 
   await channel.send({
     embeds: [embed],
@@ -113,17 +118,34 @@ async function sendJoinMessage(channel) {
 }
 
 /**
- * Send second server join message to specified channel
+ * Send subscribe message to second server (English server)
  * @param {TextChannel} channel - Discord channel to send message to
  */
-async function sendSecondServerJoinMessage(channel) {
-  const embed = createSecondServerJoinEmbed();
-  const row = createSecondServerJoinButton();
+async function sendSecondServerSubscribeMessage(channel) {
+  const embed = createEnglishSubscribeEmbed();
+  const row = createSecondServerSubscribeButton();
 
   await channel.send({
     embeds: [embed],
     components: [row],
   });
+}
+
+// Legacy functions (kept for backward compatibility)
+/**
+ * Send join message to specified channel (legacy - uses subscribe now)
+ * @param {TextChannel} channel - Discord channel to send message to
+ */
+async function sendJoinMessage(channel) {
+  return sendSubscribeMessage(channel);
+}
+
+/**
+ * Send second server join message to specified channel (legacy)
+ * @param {TextChannel} channel - Discord channel to send message to
+ */
+async function sendSecondServerJoinMessage(channel) {
+  return sendSecondServerSubscribeMessage(channel);
 }
 
 // Event: Bot is ready
@@ -133,6 +155,11 @@ client.once(Events.ClientReady, async (readyClient) => {
 
   // Initialize database connection
   await database.initDatabase();
+
+  // Initialize subscription service
+  subscriptionService.init(client);
+  subscriptionService.startPolling();
+  logger.info("💳 Subscription polling service started");
 
   // Set bot activity status
   client.user.setActivity(discordConfig.activity.name, {
@@ -149,19 +176,19 @@ client.once(Events.ClientReady, async (readyClient) => {
   // Reset users embed state after cleanup
   resetUsersEmbedState();
 
-  // Send join message to the specified channel
+  // Send subscribe message to the specified channel
   try {
     const joinChannel = await client.channels.fetch(channels.JOIN_CHANNEL_ID);
     if (joinChannel) {
-      await sendJoinMessage(joinChannel);
-      logger.info(`✅ Join message sent to channel #${joinChannel.name}`);
+      await sendSubscribeMessage(joinChannel);
+      logger.info(`✅ Subscribe message sent to channel #${joinChannel.name}`);
     } else {
       logger.error(
         `❌ Could not find channel with ID: ${channels.JOIN_CHANNEL_ID}`
       );
     }
   } catch (error) {
-    logger.error(`❌ Error sending join message: ${error.message}`);
+    logger.error(`❌ Error sending subscribe message: ${error.message}`);
   }
 
   // Initialize users embed in users channel
@@ -203,10 +230,10 @@ client.once(Events.ClientReady, async (readyClient) => {
             );
           }
 
-          // Send join message to second server
-          await sendSecondServerJoinMessage(secondServerJoinChannel);
+          // Send subscribe message to second server
+          await sendSecondServerSubscribeMessage(secondServerJoinChannel);
           logger.info(
-            `✅ Join message sent to second server channel #${secondServerJoinChannel.name}`
+            `✅ Subscribe message sent to second server channel #${secondServerJoinChannel.name}`
           );
         } else {
           logger.error(
@@ -285,5 +312,7 @@ module.exports = {
   client,
   startBot,
   sendJoinMessage,
+  sendSubscribeMessage,
+  sendSecondServerSubscribeMessage,
   cleanupPreviousMessages,
 };
