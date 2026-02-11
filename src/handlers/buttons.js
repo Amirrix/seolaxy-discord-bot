@@ -72,9 +72,11 @@ async function handleSubscribeButton(interaction) {
           `Legacy user ${discordUsername} subscribing before grace period ends`
         );
       } else {
+        // Re-assign roles in case they left and rejoined (they lose roles when leaving)
+        await subscriptionService.assignSubscriptionRoles(discordId);
         await interaction.editReply({
           content:
-            "✅ Vec imate aktivnu pretplatu! Ako imate problema sa pristupom, molimo kontaktirajte osoblje.",
+            "✅ Vec imate aktivnu pretplatu! Pristup vam je osiguran. Ako i dalje imate problema sa kanalima, molimo kontaktirajte osoblje.",
         });
         return;
       }
