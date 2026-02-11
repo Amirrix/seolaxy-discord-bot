@@ -32,12 +32,15 @@ module.exports = {
     // Normal polling interval (60 minutes)
     normalInterval: 60 * 60 * 1000,
 
-    // Fast polling interval (1 minute)
-    fastInterval: 60 * 1000,
+    // Fast polling interval (15 seconds) after checkout URL generated
+    fastInterval: 15 * 1000,
 
-    // Fast polling duration (20 minutes)
+    // Fast polling duration (20 minutes) - matches checkout link expiry
     fastDuration: 20 * 60 * 1000,
   },
+
+  // Checkout session expiry (link valid for 20 minutes)
+  checkoutExpirySeconds: 20 * 60,
 
   // Grace period for past_due subscriptions (in days)
   gracePeriodDays: 3,

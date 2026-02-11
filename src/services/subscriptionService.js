@@ -4,7 +4,7 @@
  * 
  * Dual-mode polling system:
  * - Normal mode: Polls every 60 minutes for all active subscriptions
- * - Fast mode: Polls every 1 minute for 20 minutes after checkout URL generated
+ * - Fast mode: Polls every 15 seconds for 20 minutes after checkout URL generated
  */
 
 const stripeService = require("./stripeService");
@@ -115,7 +115,9 @@ function startFastPolling() {
     stripeConfig.polling.fastInterval
   );
 
-  logger.info("Started fast subscription polling (every 1 minute)");
+  logger.info(
+    `Started fast subscription polling (every ${stripeConfig.polling.fastInterval / 1000}s)`
+  );
 }
 
 /**
@@ -150,10 +152,11 @@ async function checkPendingCheckouts() {
   for (const [discordId, checkoutData] of pendingCheckouts.entries()) {
     const { sessionId, createdAt } = checkoutData;
 
-    // Check if fast polling duration exceeded (20 minutes)
+    // Check if fast polling duration exceeded
     if (now - createdAt > stripeConfig.polling.fastDuration) {
+      const durationMinutes = stripeConfig.polling.fastDuration / 60000;
       logger.info(
-        `Fast polling expired for Discord user ${discordId} after 20 minutes`
+        `Fast polling expired for Discord user ${discordId} after ${durationMinutes} minutes`
       );
       expiredUsers.push(discordId);
       continue;
