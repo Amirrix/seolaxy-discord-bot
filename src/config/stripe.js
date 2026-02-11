@@ -35,12 +35,12 @@ module.exports = {
     // Fast polling interval (15 seconds) after checkout URL generated
     fastInterval: 15 * 1000,
 
-    // Fast polling duration (20 minutes) - matches checkout link expiry
-    fastDuration: 20 * 60 * 1000,
+    // Fast polling duration (30 minutes) - matches checkout link expiry
+    fastDuration: 30 * 60 * 1000,
   },
 
-  // Checkout session expiry (link valid for 20 minutes)
-  checkoutExpirySeconds: 20 * 60,
+  // Checkout session expiry (Stripe requires at least 30 minutes)
+  checkoutExpirySeconds: 30 * 60,
 
   // Grace period for past_due subscriptions (in days)
   gracePeriodDays: 3,
