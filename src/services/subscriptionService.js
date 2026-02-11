@@ -251,9 +251,55 @@ async function checkAllSubscriptions() {
     // Check for legacy users with expiring grace period
     await checkLegacyUserExpiry();
 
+    // Revoke access for DB users whose Stripe subscription is no longer valid
+    // (catches canceled/unpaid/missing subs we didn't see in the list, e.g. list limit)
+    await revokeExpiredSubscriptions(dbUsers, stripeSubscriptions);
+
     logger.info("Subscription status check completed");
   } catch (error) {
     logger.error(`Error in subscription check: ${error.message}`);
+  }
+}
+
+/**
+ * Revoke access for users in DB who have active/trialing but their Stripe subscription
+ * is canceled, unpaid, or no longer exists (e.g. not in list due to limit, or deleted).
+ * @param {Array} dbUsers - All users from database
+ * @param {Array} stripeSubscriptions - Subscriptions returned from Stripe list
+ */
+async function revokeExpiredSubscriptions(dbUsers, stripeSubscriptions) {
+  const processedDiscordIds = new Set(
+    stripeSubscriptions.map((s) => s.discordId)
+  );
+
+  const usersToVerify = dbUsers.filter(
+    (u) =>
+      (u.subscription_status === "active" || u.subscription_status === "trialing") &&
+      u.stripe_subscription_id
+  );
+
+  for (const dbUser of usersToVerify) {
+    const discordId = dbUser.discord_id;
+    if (processedDiscordIds.has(discordId)) {
+      continue;
+    }
+
+    const result = await stripeService.getSubscriptionStatus(
+      dbUser.stripe_subscription_id
+    );
+
+    if (!result.success || result.status === "canceled" || result.status === "unpaid") {
+      const status = result.success ? result.status : "canceled";
+      logger.info(
+        `Revoking access for ${discordId}: subscription ${status} (not in Stripe list or no longer valid)`
+      );
+      await database.updateUserSubscription(discordId, {
+        subscriptionStatus: status,
+        subscriptionEndsAt: result.currentPeriodEnd || new Date(),
+      });
+      await removeSubscriptionRoles(discordId);
+      await sendSubscriptionEndedDM(discordId, status);
+    }
   }
 }
 
