@@ -1,10 +1,10 @@
 /**
  * Subscription Polling Service
  * Handles subscription status monitoring and role management
- * 
+ *
  * Dual-mode polling system:
  * - Normal mode: Polls every 60 minutes for all active subscriptions
- * - Fast mode: Polls every 1 minute for 20 minutes after checkout URL generated
+ * - Fast mode: Polls every 15 seconds for 20 minutes after checkout URL generated
  */
 
 const stripeService = require("./stripeService");
@@ -53,7 +53,9 @@ function startPolling() {
   );
 
   logger.info(
-    `Started normal subscription polling (every ${stripeConfig.polling.normalInterval / 60000} minutes)`
+    `Started normal subscription polling (every ${
+      stripeConfig.polling.normalInterval / 60000
+    } minutes)`
   );
 }
 
@@ -115,7 +117,11 @@ function startFastPolling() {
     stripeConfig.polling.fastInterval
   );
 
-  logger.info("Started fast subscription polling (every 1 minute)");
+  logger.info(
+    `Started fast subscription polling (every ${
+      stripeConfig.polling.fastInterval / 1000
+    }s)`
+  );
 }
 
 /**
@@ -150,10 +156,11 @@ async function checkPendingCheckouts() {
   for (const [discordId, checkoutData] of pendingCheckouts.entries()) {
     const { sessionId, createdAt } = checkoutData;
 
-    // Check if fast polling duration exceeded (20 minutes)
+    // Check if fast polling duration exceeded
     if (now - createdAt > stripeConfig.polling.fastDuration) {
+      const durationMinutes = stripeConfig.polling.fastDuration / 60000;
       logger.info(
-        `Fast polling expired for Discord user ${discordId} after 20 minutes`
+        `Fast polling expired for Discord user ${discordId} after ${durationMinutes} minutes`
       );
       expiredUsers.push(discordId);
       continue;
@@ -195,13 +202,17 @@ async function checkAllSubscriptions() {
     const dbUsers = await database.fetchAllUsers();
 
     // Create a map of Discord IDs to database users
-    const dbUserMap = new Map(
-      dbUsers.map((user) => [user.discord_id, user])
-    );
+    const dbUserMap = new Map(dbUsers.map((user) => [user.discord_id, user]));
 
     // Process Stripe subscriptions
     for (const stripeSub of stripeSubscriptions) {
-      const { discordId, status, subscriptionId, currentPeriodEnd, customerId } = stripeSub;
+      const {
+        discordId,
+        status,
+        subscriptionId,
+        currentPeriodEnd,
+        customerId,
+      } = stripeSub;
 
       const dbUser = dbUserMap.get(discordId);
 
@@ -212,7 +223,13 @@ async function checkAllSubscriptions() {
         );
 
         // Create database entry for this subscriber
-        await syncStripeSubscriber(discordId, customerId, subscriptionId, status, currentPeriodEnd);
+        await syncStripeSubscriber(
+          discordId,
+          customerId,
+          subscriptionId,
+          status,
+          currentPeriodEnd
+        );
         continue;
       }
 
@@ -227,7 +244,7 @@ async function checkAllSubscriptions() {
           subscriptionStatus: status,
           subscriptionEndsAt: currentPeriodEnd,
         });
-        
+
         // Ensure they have roles
         if (status === "active") {
           await assignSubscriptionRoles(discordId);
@@ -241,16 +258,72 @@ async function checkAllSubscriptions() {
           `Subscription status changed for ${discordId}: ${dbUser.subscription_status} -> ${status}`
         );
 
-        await handleSubscriptionStatusChange(discordId, dbUser, status, currentPeriodEnd);
+        await handleSubscriptionStatusChange(
+          discordId,
+          dbUser,
+          status,
+          currentPeriodEnd
+        );
       }
     }
 
     // Check for legacy users with expiring grace period
     await checkLegacyUserExpiry();
 
+    // Revoke access for DB users whose Stripe subscription is no longer valid
+    // (catches canceled/unpaid/missing subs we didn't see in the list, e.g. list limit)
+    await revokeExpiredSubscriptions(dbUsers, stripeSubscriptions);
+
     logger.info("Subscription status check completed");
   } catch (error) {
     logger.error(`Error in subscription check: ${error.message}`);
+  }
+}
+
+/**
+ * Revoke access for users in DB who have active/trialing but their Stripe subscription
+ * is canceled, unpaid, or no longer exists (e.g. not in list due to limit, or deleted).
+ * @param {Array} dbUsers - All users from database
+ * @param {Array} stripeSubscriptions - Subscriptions returned from Stripe list
+ */
+async function revokeExpiredSubscriptions(dbUsers, stripeSubscriptions) {
+  const processedDiscordIds = new Set(
+    stripeSubscriptions.map((s) => s.discordId)
+  );
+
+  const usersToVerify = dbUsers.filter(
+    (u) =>
+      (u.subscription_status === "active" ||
+        u.subscription_status === "trialing") &&
+      u.stripe_subscription_id
+  );
+
+  for (const dbUser of usersToVerify) {
+    const discordId = dbUser.discord_id;
+    if (processedDiscordIds.has(discordId)) {
+      continue;
+    }
+
+    const result = await stripeService.getSubscriptionStatus(
+      dbUser.stripe_subscription_id
+    );
+
+    if (
+      !result.success ||
+      result.status === "canceled" ||
+      result.status === "unpaid"
+    ) {
+      const status = result.success ? result.status : "canceled";
+      logger.info(
+        `Revoking access for ${discordId}: subscription ${status} (not in Stripe list or no longer valid)`
+      );
+      await database.updateUserSubscription(discordId, {
+        subscriptionStatus: status,
+        subscriptionEndsAt: result.currentPeriodEnd || new Date(),
+      });
+      await removeSubscriptionRoles(discordId);
+      await sendSubscriptionEndedDM(discordId, status);
+    }
   }
 }
 
@@ -263,7 +336,13 @@ async function checkAllSubscriptions() {
  * @param {string} status - Subscription status
  * @param {Date} currentPeriodEnd - Subscription period end date
  */
-async function syncStripeSubscriber(discordId, customerId, subscriptionId, status, currentPeriodEnd) {
+async function syncStripeSubscriber(
+  discordId,
+  customerId,
+  subscriptionId,
+  status,
+  currentPeriodEnd
+) {
   try {
     // Fetch Discord user info
     const discordUser = await fetchDiscordUser(discordId);
@@ -350,7 +429,9 @@ async function processNewSubscription(sessionData) {
     // Send welcome DM
     await sendSubscriptionWelcomeDM(discordId);
 
-    logger.info(`Successfully processed new subscription for Discord user ${discordId}`);
+    logger.info(
+      `Successfully processed new subscription for Discord user ${discordId}`
+    );
   } catch (error) {
     logger.error(`Error processing new subscription: ${error.message}`);
   }
@@ -363,7 +444,12 @@ async function processNewSubscription(sessionData) {
  * @param {string} newStatus - New subscription status
  * @param {Date} currentPeriodEnd - Subscription period end date
  */
-async function handleSubscriptionStatusChange(discordId, dbUser, newStatus, currentPeriodEnd) {
+async function handleSubscriptionStatusChange(
+  discordId,
+  dbUser,
+  newStatus,
+  currentPeriodEnd
+) {
   try {
     // Update database
     await database.updateUserSubscription(discordId, {
@@ -412,7 +498,10 @@ async function checkLegacyUserExpiry() {
     const now = new Date();
 
     for (const user of legacyUsers) {
-      if (user.subscription_ends_at && new Date(user.subscription_ends_at) <= now) {
+      if (
+        user.subscription_ends_at &&
+        new Date(user.subscription_ends_at) <= now
+      ) {
         logger.info(
           `Legacy user ${user.discord_id} grace period expired - removing access`
         );
@@ -447,9 +536,7 @@ async function assignSubscriptionRoles(discordId) {
     }
 
     // Get main server guild
-    const guild = discordClient.guilds.cache.get(
-      process.env.GUILD_ID
-    );
+    const guild = discordClient.guilds.cache.get(process.env.GUILD_ID);
 
     if (!guild) {
       logger.error("Main guild not found for role assignment");
@@ -460,7 +547,9 @@ async function assignSubscriptionRoles(discordId) {
     const member = await guild.members.fetch(discordId).catch(() => null);
 
     if (!member) {
-      logger.warn(`Could not find member ${discordId} in guild for role assignment`);
+      logger.warn(
+        `Could not find member ${discordId} in guild for role assignment`
+      );
       return;
     }
 
@@ -508,9 +597,7 @@ async function removeSubscriptionRoles(discordId) {
     }
 
     // Get main server guild
-    const guild = discordClient.guilds.cache.get(
-      process.env.GUILD_ID
-    );
+    const guild = discordClient.guilds.cache.get(process.env.GUILD_ID);
 
     if (!guild) {
       logger.error("Main guild not found for role removal");
@@ -521,7 +608,9 @@ async function removeSubscriptionRoles(discordId) {
     const member = await guild.members.fetch(discordId).catch(() => null);
 
     if (!member) {
-      logger.warn(`Could not find member ${discordId} in guild for role removal`);
+      logger.warn(
+        `Could not find member ${discordId} in guild for role removal`
+      );
       return;
     }
 
@@ -582,9 +671,9 @@ async function sendSubscriptionWelcomeDM(discordId) {
 
     await user.send(
       `🎉 **Dobrodosli u Seolaxy!**\n\n` +
-      `Vasa pretplata je sada aktivna i dobili ste pristup svim clanskim kanalima.\n\n` +
-      `Hvala vam na podrsci! Ako imate bilo kakvih pitanja, slobodno se obratite nasem osoblju.\n\n` +
-      `Uzivajte u clanstvu! 🚀`
+        `Vasa pretplata je sada aktivna i dobili ste pristup svim clanskim kanalima.\n\n` +
+        `Hvala vam na podrsci! Ako imate bilo kakvih pitanja, slobodno se obratite nasem osoblju.\n\n` +
+        `Uzivajte u clanstvu! 🚀`
     );
 
     logger.info(`Sent welcome DM to ${user.tag}`);
@@ -604,13 +693,15 @@ async function sendSubscriptionActivatedDM(discordId) {
 
     await user.send(
       `✅ **Pretplata ponovo aktivirana!**\n\n` +
-      `Vasa pretplata je ponovo aktivna i vas pristup je vracen.\n\n` +
-      `Hvala vam sto nastavljate clanstvo! 🎉`
+        `Vasa pretplata je ponovo aktivna i vas pristup je vracen.\n\n` +
+        `Hvala vam sto nastavljate clanstvo! 🎉`
     );
 
     logger.info(`Sent reactivation DM to ${user.tag}`);
   } catch (error) {
-    logger.warn(`Could not send reactivation DM to ${discordId}: ${error.message}`);
+    logger.warn(
+      `Could not send reactivation DM to ${discordId}: ${error.message}`
+    );
   }
 }
 
@@ -625,14 +716,16 @@ async function sendPaymentFailedDM(discordId) {
 
     await user.send(
       `⚠️ **Problem sa placanjem**\n\n` +
-      `Nismo mogli obraditi vase placanje pretplate. Molimo azurirajte nacin placanja kako biste izbjegli gubitak pristupa.\n\n` +
-      `Imate ${stripeConfig.gracePeriodDays} dana da rijesite ovaj problem.\n\n` +
-      `Ako vam treba pomoc, molimo kontaktirajte nase osoblje.`
+        `Nismo mogli obraditi vase placanje pretplate. Molimo azurirajte nacin placanja kako biste izbjegli gubitak pristupa.\n\n` +
+        `Imate ${stripeConfig.gracePeriodDays} dana da rijesite ovaj problem.\n\n` +
+        `Ako vam treba pomoc, molimo kontaktirajte nase osoblje.`
     );
 
     logger.info(`Sent payment failed DM to ${user.tag}`);
   } catch (error) {
-    logger.warn(`Could not send payment failed DM to ${discordId}: ${error.message}`);
+    logger.warn(
+      `Could not send payment failed DM to ${discordId}: ${error.message}`
+    );
   }
 }
 
@@ -646,20 +739,23 @@ async function sendSubscriptionEndedDM(discordId, reason) {
     const user = await fetchDiscordUser(discordId);
     if (!user) return;
 
-    const reasonText = reason === "canceled" 
-      ? "Vasa pretplata je otkazana."
-      : "Vasa pretplata je zavrsena zbog problema sa placanjem.";
+    const reasonText =
+      reason === "canceled"
+        ? "Vasa pretplata je otkazana."
+        : "Vasa pretplata je zavrsena zbog problema sa placanjem.";
 
     await user.send(
       `😔 **Pretplata zavrsena**\n\n` +
-      `${reasonText}\n\n` +
-      `Vase uloge pristupa su uklonjene. Da biste ponovo dobili pristup, molimo pretplatite se koristeci dugme za pretplatu na serveru.\n\n` +
-      `Nadamo se da cemo vas uskoro ponovo vidjeti! 💙`
+        `${reasonText}\n\n` +
+        `Vase uloge pristupa su uklonjene. Da biste ponovo dobili pristup, molimo pretplatite se koristeci dugme za pretplatu na serveru.\n\n` +
+        `Nadamo se da cemo vas uskoro ponovo vidjeti! 💙`
     );
 
     logger.info(`Sent subscription ended DM to ${user.tag}`);
   } catch (error) {
-    logger.warn(`Could not send subscription ended DM to ${discordId}: ${error.message}`);
+    logger.warn(
+      `Could not send subscription ended DM to ${discordId}: ${error.message}`
+    );
   }
 }
 
@@ -674,14 +770,16 @@ async function sendLegacyExpiryDM(discordId) {
 
     await user.send(
       `⏰ **Period besplatnog pristupa je zavrsen**\n\n` +
-      `Vas jednomjesecni besplatni pristup je zavrsen. Presli smo na model pretplate.\n\n` +
-      `Da biste nastavili uzivati pristup svim clanskim kanalima, molimo pretplatite se koristeci dugme na serveru.\n\n` +
-      `Hvala vam sto ste dio nase zajednice! 💙`
+        `Vas jednomjesecni besplatni pristup je zavrsen. Presli smo na model pretplate.\n\n` +
+        `Da biste nastavili uzivati pristup svim clanskim kanalima, molimo pretplatite se koristeci dugme na serveru.\n\n` +
+        `Hvala vam sto ste dio nase zajednice! 💙`
     );
 
     logger.info(`Sent legacy expiry DM to ${user.tag}`);
   } catch (error) {
-    logger.warn(`Could not send legacy expiry DM to ${discordId}: ${error.message}`);
+    logger.warn(
+      `Could not send legacy expiry DM to ${discordId}: ${error.message}`
+    );
   }
 }
 

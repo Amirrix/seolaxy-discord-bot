@@ -67,6 +67,9 @@ async function createCheckoutSession(discordId, discordUsername, email = null) {
       cancel_url: stripeConfig.checkout.cancelUrl,
       client_reference_id: discordId,
       allow_promotion_codes: stripeConfig.checkout.allowPromotionCodes,
+      expires_at:
+        Math.floor(Date.now() / 1000) +
+        (stripeConfig.checkoutExpirySeconds || 30 * 60),
       metadata: {
         discord_id: discordId,
         discord_username: discordUsername,
@@ -261,7 +264,9 @@ async function cancelSubscription(subscriptionId, immediately = false) {
     }
 
     logger.info(
-      `Subscription ${subscriptionId} ${immediately ? "cancelled immediately" : "set to cancel at period end"}`
+      `Subscription ${subscriptionId} ${
+        immediately ? "cancelled immediately" : "set to cancel at period end"
+      }`
     );
 
     return {
