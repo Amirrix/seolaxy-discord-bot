@@ -361,7 +361,143 @@ async function assignMemberRole(member, guild) {
   }
 }
 
+/**
+ * Remove all member/access roles from a user
+ * @param {Object} member - Discord guild member
+ * @param {Object} guild - Discord guild
+ * @returns {Object} - Role removal result
+ */
+async function removeAccessRoles(member, guild) {
+  const result = { success: false, rolesRemoved: [] };
+
+  try {
+    // Check if this is the English server
+    const isEnglishServer = guild.id === CHANNELS.SECOND_SERVER_ID;
+
+    if (isEnglishServer) {
+      // Remove English server verified role
+      const verifiedRole = guild.roles.cache.get(ROLES.SECOND_SERVER_VERIFIED);
+      if (verifiedRole && member.roles.cache.has(ROLES.SECOND_SERVER_VERIFIED)) {
+        await member.roles.remove(verifiedRole);
+        result.rolesRemoved.push("Second Server Verified");
+        logger.info(
+          `Removed verified role from ${member.user.tag} on English server`
+        );
+      }
+
+      // Add unverified role back
+      const unverifiedRole = guild.roles.cache.get(
+        ROLES.SECOND_SERVER_UNVERIFIED
+      );
+      if (
+        unverifiedRole &&
+        !member.roles.cache.has(ROLES.SECOND_SERVER_UNVERIFIED)
+      ) {
+        await member.roles.add(unverifiedRole);
+        logger.info(
+          `Added unverified role to ${member.user.tag} on English server`
+        );
+      }
+
+      result.success = true;
+      return result;
+    }
+
+    // Main server - remove all possible member roles
+    const memberRoles = [
+      { id: ROLES.MEMBER, name: "Member" },
+      { id: ROLES.ENGLISH_MEMBER, name: "English Member" },
+      { id: ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER, name: "BCS Member" },
+    ];
+
+    for (const roleInfo of memberRoles) {
+      if (member.roles.cache.has(roleInfo.id)) {
+        const role = guild.roles.cache.get(roleInfo.id);
+        if (role) {
+          await member.roles.remove(role);
+          result.rolesRemoved.push(roleInfo.name);
+          logger.info(`Removed ${roleInfo.name} role from ${member.user.tag}`);
+        }
+      }
+    }
+
+    // Add unverified role back
+    const unverifiedRole = guild.roles.cache.get(ROLES.UNVERIFIED);
+    if (unverifiedRole && !member.roles.cache.has(ROLES.UNVERIFIED)) {
+      await member.roles.add(unverifiedRole);
+      logger.info(`Added unverified role to ${member.user.tag}`);
+    }
+
+    result.success = true;
+    return result;
+  } catch (error) {
+    logger.error(
+      `Error removing access roles from ${member.user.tag}: ${error.message}`
+    );
+    return result;
+  }
+}
+
+/**
+ * Send subscription expiring notification DM
+ * @param {Object} user - Database user object
+ * @param {number} daysRemaining - Days until subscription expires
+ */
+async function notifySubscriptionExpiring(user, daysRemaining) {
+  try {
+    const { client } = require("../index");
+    if (!client) {
+      logger.warn("Client not available for sending expiry notification");
+      return;
+    }
+
+    const discordUser = await client.users.fetch(user.discord_id);
+    if (!discordUser) {
+      logger.warn(`Could not find Discord user ${user.discord_id}`);
+      return;
+    }
+
+    const message =
+      `⏰ **Subscription Reminder**\n\n` +
+      `Your Seolaxy subscription will expire in **${daysRemaining} day${daysRemaining === 1 ? "" : "s"}**.\n\n` +
+      `To continue enjoying access to all member channels, please ensure your payment method is up to date.\n\n` +
+      `If you have any questions, please contact our staff.`;
+
+    await discordUser.send(message);
+    logger.info(
+      `Sent subscription expiring notification to ${discordUser.tag}`
+    );
+  } catch (error) {
+    logger.warn(
+      `Could not send subscription expiring notification to ${user.discord_id}: ${error.message}`
+    );
+  }
+}
+
+/**
+ * Check if user has active subscription
+ * @param {string} discordId - Discord user ID
+ * @returns {boolean} - True if user has active subscription
+ */
+async function hasActiveSubscription(discordId) {
+  try {
+    const user = await database.getUserByDiscordId(discordId);
+    if (!user) return false;
+
+    return (
+      user.subscription_status === "active" ||
+      user.subscription_status === "trialing"
+    );
+  } catch (error) {
+    logger.error(`Error checking subscription status: ${error.message}`);
+    return false;
+  }
+}
+
 module.exports = {
   processUserRegistration,
   assignMemberRole,
+  removeAccessRoles,
+  notifySubscriptionExpiring,
+  hasActiveSubscription,
 };
