@@ -479,9 +479,9 @@ function createMentorship2JoinEmbed() {
 }
 
 /**
- * Create Mentorship #2 registration success embed with Thinkific instructions (Croatian)
+ * Create Mentorship #2 registration success embed (Croatian)
  * @param {Object} data - Registration data
- * @returns {EmbedBuilder} - Success embed with Thinkific info
+ * @returns {EmbedBuilder} - Success embed linking to Thinkific info channel
  */
 function createMentorship2SuccessEmbed(data) {
   const { nickname, roleAssigned } = data;
@@ -490,21 +490,11 @@ function createMentorship2SuccessEmbed(data) {
     ? "✅ Verificiran"
     : "⚠️ Dodjela uloge nije uspjela";
 
-  const thinkificInstructions =
-    "🎥 **Pristup SEOLAXY Masterclass videosima**\n\n" +
-    "Dok čekaš početak mentorship programa, možeš odmah započeti učenje tako što odgledaš Masterclass lekcije na Thinkificu.\n\n" +
-    "Molim te registruj se na Thinkific putem ovog linka koristeći svog Google Account:\n" +
-    "https://courses.thinkific.com/users/auth/google?ss%5Breferral%5D=&ss%5Buser_return_to%5D=&ss%5Bvisitor_id%5D=3332071156\n\n" +
-    "Ako ne radi link, onda se preko ovog linka registruj klikom na Google ikonicu:\n" +
-    "https://seolaxy.thinkific.com/users/sign_up\n\n" +
-    "Odobrenje na Thinkificu može potrajati to 24h. Nakon 24h pogledaj u svoj email inbox, trebao ti je stići email od Thinkifica. Pokušaj se logovati sa tim podacima na sljedećem linku 👉 https://seolaxy.thinkific.com/users/sign_in\n\n" +
-    "Ako se ne možeš ulogovati nakon 24h, piši u kanal <#1463968532445532424> pa ćemo se pobrinuti da ti omogućimo pristup čim prije.\n\n" +
-    'Ako ti je logovanje bilo uspješno, klikni na "next" (dole desno, bijela strelica u ljubičastom krugu)';
-
   return new EmbedBuilder()
     .setTitle("✅ Registracija uspješna!")
     .setDescription(
-      `Čestitam, registracija je uspješna.\n\n${thinkificInstructions}`
+      "Čestitam, registracija je uspješna.\n\n" +
+        "Pogledaj kanal <#1463968532445532424> za pristup SEOLAXY Masterclass videosima i daljnje upute."
     )
     .addFields(
       {
