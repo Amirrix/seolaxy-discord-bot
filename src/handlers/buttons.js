@@ -12,15 +12,24 @@ const stripeService = require("../services/stripeService");
 const subscriptionService = require("../services/subscriptionService");
 const {
   generateUsersEmbed,
+  generateMentorship2UsersEmbed,
   USERS_PER_PAGE,
   createSubscriptionCheckoutEmbed,
 } = require("../components/embeds");
-const { createUserInterfaceButtons } = require("../components/buttons");
+const {
+  createUserInterfaceButtons,
+  createMentorship2UserInterfaceButtons,
+} = require("../components/buttons");
+const { createMentorship2Modal } = require("../components/modals");
 const channels = require("../constants/channels");
 
-// Store pagination state
+// Store pagination state (main server)
 let currentUsersPage = 1;
 let usersEmbedMessageId = null;
+
+// Store pagination state (Mentorship #2)
+let m2CurrentUsersPage = 1;
+let m2UsersEmbedMessageId = null;
 
 /**
  * Reset users embed state (called after cleanup)
@@ -28,6 +37,14 @@ let usersEmbedMessageId = null;
 function resetUsersEmbedState() {
   usersEmbedMessageId = null;
   currentUsersPage = 1;
+}
+
+/**
+ * Reset Mentorship #2 users embed state (called after cleanup)
+ */
+function resetMentorship2UsersEmbedState() {
+  m2UsersEmbedMessageId = null;
+  m2CurrentUsersPage = 1;
 }
 
 /**
@@ -433,6 +450,175 @@ async function handleSecondServerJoinButton(interaction) {
   }
 }
 
+// ===== Mentorship #2 Handlers =====
+
+/**
+ * Handle Mentorship #2 join button click
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleMentorship2JoinButton(interaction) {
+  logger.info(
+    `Mentorship #2 join button clicked by ${interaction.user.tag}`
+  );
+
+  const modal = createMentorship2Modal();
+  await interaction.showModal(modal);
+}
+
+/**
+ * Handle Mentorship #2 users pagination button clicks
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleMentorship2UsersPaginationButton(interaction) {
+  try {
+    await interaction.deferUpdate();
+
+    const users = await database.fetchMentorship2Users();
+    const totalPages = Math.max(1, Math.ceil(users.length / USERS_PER_PAGE));
+    let newPage = m2CurrentUsersPage;
+
+    switch (interaction.customId) {
+      case "m2_users_first_page":
+        newPage = 1;
+        break;
+      case "m2_users_prev_page":
+        newPage = Math.max(1, m2CurrentUsersPage - 1);
+        break;
+      case "m2_users_next_page":
+        newPage = Math.min(totalPages, m2CurrentUsersPage + 1);
+        break;
+      case "m2_users_last_page":
+        newPage = totalPages;
+        break;
+      default:
+        logger.warn(
+          `Unknown M2 pagination button: ${interaction.customId}`
+        );
+        return;
+    }
+
+    await updateMentorship2UsersEmbed(newPage);
+
+    logger.info(
+      `M2 users pagination: moved to page ${newPage} by ${interaction.user.tag}`
+    );
+  } catch (error) {
+    logger.error(`Error handling M2 users pagination: ${error.message}`);
+    try {
+      await interaction.followUp({
+        content:
+          "❌ Greška pri ažuriranju liste korisnika. Pokušajte ponovo.",
+        flags: 64,
+      });
+    } catch (followUpError) {
+      logger.error(
+        `Error sending M2 pagination error message: ${followUpError.message}`
+      );
+    }
+  }
+}
+
+/**
+ * Handle Mentorship #2 users export button click
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleMentorship2UsersExportButton(interaction) {
+  try {
+    await interaction.deferReply({ flags: 64 });
+
+    logger.info(
+      `M2 Users CSV export requested by ${interaction.user.tag}`
+    );
+
+    const csvExportM2 = require("../services/csvExport");
+    const exportResult = await csvExportM2.exportMentorship2UsersAsCSV();
+
+    if (!exportResult.success) {
+      await interaction.editReply({
+        content: `❌ ${exportResult.error}`,
+      });
+      return;
+    }
+
+    await interaction.editReply({
+      content: `✅ **Mentorship #2 korisnici eksportirani!**\n\n📊 **${
+        exportResult.userCount
+      } korisnika** eksportirano u CSV\n📅 Generirano: ${exportResult.timestamp.toLocaleString()}`,
+      files: [exportResult.attachment],
+    });
+
+    logger.info(
+      `M2 CSV export completed for ${interaction.user.tag} - ${exportResult.userCount} users exported`
+    );
+  } catch (error) {
+    logger.error(`Error handling M2 users export: ${error.message}`);
+    try {
+      await interaction.editReply({
+        content:
+          "❌ Greška pri generiranju CSV eksporta. Pokušajte ponovo.",
+      });
+    } catch (editError) {
+      logger.error(
+        `Error sending M2 export error message: ${editError.message}`
+      );
+    }
+  }
+}
+
+/**
+ * Send or update Mentorship #2 users embed
+ * @param {number} page - Page number to display
+ */
+async function updateMentorship2UsersEmbed(page = m2CurrentUsersPage) {
+  try {
+    const { client } = require("../index");
+    if (!client || !client.channels) {
+      logger.warn("Client not available for updating M2 users embed");
+      return;
+    }
+
+    const usersChannel = await client.channels.fetch(
+      channels.MENTORSHIP2_USERS_CHANNEL_ID
+    );
+    if (!usersChannel) {
+      logger.error(
+        `Could not find M2 users channel with ID: ${channels.MENTORSHIP2_USERS_CHANNEL_ID}`
+      );
+      return;
+    }
+
+    const { embed, totalPages } = await generateMentorship2UsersEmbed(page);
+    m2CurrentUsersPage = page;
+
+    const components = createMentorship2UserInterfaceButtons(totalPages, page);
+
+    if (m2UsersEmbedMessageId) {
+      try {
+        const existingMessage = await usersChannel.messages.fetch(
+          m2UsersEmbedMessageId
+        );
+        await existingMessage.edit({ embeds: [embed], components });
+        logger.info(`M2 users embed updated successfully (page ${page})`);
+        return;
+      } catch (error) {
+        logger.warn(
+          `Could not edit existing M2 users embed: ${error.message}`
+        );
+        m2UsersEmbedMessageId = null;
+      }
+    }
+
+    const message = await usersChannel.send({
+      embeds: [embed],
+      components,
+    });
+    m2UsersEmbedMessageId = message.id;
+    logger.info(`New M2 users embed sent successfully (page ${page})`);
+  } catch (error) {
+    logger.error(`Error updating M2 users embed: ${error.message}`);
+  }
+}
+
 /**
  * Main button handler router
  * @param {Interaction} interaction - Discord interaction
@@ -451,6 +637,12 @@ async function handleButton(interaction) {
       await handleUsersExportButton(interaction);
     } else if (interaction.customId.startsWith("users_")) {
       await handleUsersPaginationButton(interaction);
+    } else if (interaction.customId === "mentorship2_join") {
+      await handleMentorship2JoinButton(interaction);
+    } else if (interaction.customId === "m2_users_export_csv") {
+      await handleMentorship2UsersExportButton(interaction);
+    } else if (interaction.customId.startsWith("m2_users_")) {
+      await handleMentorship2UsersPaginationButton(interaction);
     } else {
       logger.warn(`Unknown button interaction: ${interaction.customId}`);
     }
@@ -462,10 +654,12 @@ async function handleButton(interaction) {
 module.exports = {
   handleButton,
   updateUsersEmbed,
+  updateMentorship2UsersEmbed,
   handleJoinButton,
   handleSubscribeButton,
   handleSecondServerSubscribeButton,
   handleUsersPaginationButton,
   handleUsersExportButton,
   resetUsersEmbedState,
+  resetMentorship2UsersEmbedState,
 };

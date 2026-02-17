@@ -9,18 +9,21 @@ const logger = require("../utils/logger");
 /**
  * Validate payment intent or invoice number using Seolaxy API
  * @param {string} userInput - Payment intent ID (starts with "pi") or invoice number (starts with "SM")
+ * @param {string} [bearerToken] - Optional bearer token override (for Mentorship #2)
  * @returns {Object} - Validation result with success status and error details
  */
-async function validatePaymentIntent(userInput) {
+async function validatePaymentIntent(userInput, bearerToken) {
   logger.info(`Validating payment intent: ${userInput}`);
+
+  const token = bearerToken || apiConfig.bearerToken;
 
   try {
     const url = `${apiConfig.baseURL}${apiConfig.endpoints.enrollDiscord}`;
 
     // Check if bearer token is configured
-    if (!apiConfig.bearerToken) {
+    if (!token) {
       logger.error(
-        "Seolaxy API bearer token not configured - check SEOLAXY_API_BEARER_TOKEN environment variable"
+        "Seolaxy API bearer token not configured"
       );
       return {
         success: false,
@@ -63,7 +66,7 @@ async function validatePaymentIntent(userInput) {
     const response = await fetch(url, {
       method: "PATCH",
       headers: {
-        Authorization: `Bearer ${apiConfig.bearerToken}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         "User-Agent": "Seolaxy-Discord-Bot/1.0",
       },
@@ -163,6 +166,16 @@ async function validatePaymentIntent(userInput) {
   }
 }
 
+/**
+ * Validate invoice number for Mentorship #2 using dedicated JWT
+ * @param {string} invoiceNumber - Invoice number (e.g., SM-XXXX/2026)
+ * @returns {Object} - Validation result with success status and error details
+ */
+async function validateMentorship2Payment(invoiceNumber) {
+  return validatePaymentIntent(invoiceNumber, apiConfig.mentorship2BearerToken);
+}
+
 module.exports = {
   validatePaymentIntent,
+  validateMentorship2Payment,
 };

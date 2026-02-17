@@ -70,6 +70,65 @@ function createRegistrationModal() {
   return modal;
 }
 
+/**
+ * Create Mentorship #2 registration modal (Croatian)
+ * @returns {ModalBuilder} - Mentorship #2 registration modal
+ */
+function createMentorship2Modal() {
+  const modal = new ModalBuilder()
+    .setCustomId("mentorship2_join_modal")
+    .setTitle("Registracijski obrazac");
+
+  const firstNameInput = new TextInputBuilder()
+    .setCustomId("first_name")
+    .setLabel("Ime")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(50);
+
+  const lastNameInput = new TextInputBuilder()
+    .setCustomId("last_name")
+    .setLabel("Prezime")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(50);
+
+  const emailInput = new TextInputBuilder()
+    .setCustomId("email")
+    .setLabel("Email adresa")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(100)
+    .setPlaceholder("tvoj.google.account@gmail.com");
+
+  const projectNameInput = new TextInputBuilder()
+    .setCustomId("project_name")
+    .setLabel("Projekat/Klijent URL (opcionalno)")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setMaxLength(100)
+    .setPlaceholder("Unesi 'searching' ako nemaš projekat/klijenta.");
+
+  const invoiceInput = new TextInputBuilder()
+    .setCustomId("invoice_number")
+    .setLabel("Broj fakture")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(100)
+    .setPlaceholder("SM-XXXX/2026");
+
+  const firstRow = new ActionRowBuilder().addComponents(firstNameInput);
+  const secondRow = new ActionRowBuilder().addComponents(lastNameInput);
+  const thirdRow = new ActionRowBuilder().addComponents(emailInput);
+  const fourthRow = new ActionRowBuilder().addComponents(projectNameInput);
+  const fifthRow = new ActionRowBuilder().addComponents(invoiceInput);
+
+  modal.addComponents(firstRow, secondRow, thirdRow, fourthRow, fifthRow);
+
+  return modal;
+}
+
 module.exports = {
   createRegistrationModal,
+  createMentorship2Modal,
 };

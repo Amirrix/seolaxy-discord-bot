@@ -22,7 +22,9 @@ const { handleCommand } = require("./handlers/commands");
 const {
   handleButton,
   updateUsersEmbed,
+  updateMentorship2UsersEmbed,
   resetUsersEmbedState,
+  resetMentorship2UsersEmbedState,
 } = require("./handlers/buttons");
 const { handleModal } = require("./handlers/modals");
 
@@ -32,12 +34,14 @@ const {
   createSecondServerJoinEmbed,
   createSubscribeEmbed,
   createEnglishSubscribeEmbed,
+  createMentorship2JoinEmbed,
 } = require("./components/embeds");
 const {
   createJoinButton,
   createSecondServerJoinButton,
   createSubscribeButton,
   createSecondServerSubscribeButton,
+  createMentorship2JoinButton,
 } = require("./components/buttons");
 
 // Utilities
@@ -148,6 +152,20 @@ async function sendSecondServerJoinMessage(channel) {
   return sendSecondServerSubscribeMessage(channel);
 }
 
+/**
+ * Send Mentorship #2 join message to specified channel (Croatian)
+ * @param {TextChannel} channel - Discord channel to send message to
+ */
+async function sendMentorship2JoinMessage(channel) {
+  const embed = createMentorship2JoinEmbed();
+  const row = createMentorship2JoinButton();
+
+  await channel.send({
+    embeds: [embed],
+    components: [row],
+  });
+}
+
 // Event: Bot is ready
 client.once(Events.ClientReady, async (readyClient) => {
   logger.info(`🎉 Bot is ready! Logged in as ${readyClient.user.tag}`);
@@ -251,6 +269,49 @@ client.once(Events.ClientReady, async (readyClient) => {
   } else {
     logger.info("📝 Second server not configured, skipping initialization");
   }
+
+  // Initialize Mentorship #2 server
+  if (channels.MENTORSHIP2_JOIN_CHANNEL_ID) {
+    try {
+      logger.info("📡 Initializing Mentorship #2 server...");
+
+      // Clean up previous bot messages in Mentorship #2 channels
+      await cleanupPreviousMessages([
+        channels.MENTORSHIP2_JOIN_CHANNEL_ID,
+        channels.MENTORSHIP2_USERS_CHANNEL_ID,
+      ]);
+
+      // Reset Mentorship #2 users embed state after cleanup
+      resetMentorship2UsersEmbedState();
+
+      // Send join message to Mentorship #2 join channel
+      const m2JoinChannel = await client.channels.fetch(
+        channels.MENTORSHIP2_JOIN_CHANNEL_ID
+      );
+      if (m2JoinChannel) {
+        await sendMentorship2JoinMessage(m2JoinChannel);
+        logger.info(
+          `✅ Mentorship #2 join message sent to channel #${m2JoinChannel.name}`
+        );
+      } else {
+        logger.error(
+          `❌ Could not find Mentorship #2 join channel with ID: ${channels.MENTORSHIP2_JOIN_CHANNEL_ID}`
+        );
+      }
+
+      // Initialize Mentorship #2 users embed
+      await updateMentorship2UsersEmbed();
+      logger.info("✅ Mentorship #2 server initialized successfully");
+    } catch (error) {
+      logger.error(
+        `❌ Error initializing Mentorship #2 server: ${error.message}`
+      );
+    }
+  } else {
+    logger.info(
+      "📝 Mentorship #2 server not configured, skipping initialization"
+    );
+  }
 });
 
 // Event: Handle interactions (commands, buttons, modals)
@@ -314,5 +375,6 @@ module.exports = {
   sendJoinMessage,
   sendSubscribeMessage,
   sendSecondServerSubscribeMessage,
+  sendMentorship2JoinMessage,
   cleanupPreviousMessages,
 };

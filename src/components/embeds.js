@@ -456,6 +456,134 @@ async function generateUsersEmbed(page = 1) {
   return { embed, totalPages };
 }
 
+// ===== Mentorship #2 Embeds (Croatian) =====
+
+/**
+ * Create Mentorship #2 join message embed (Croatian)
+ * @returns {EmbedBuilder} - Croatian join message embed
+ */
+function createMentorship2JoinEmbed() {
+  return new EmbedBuilder()
+    .setTitle("🚀 Zdravo! Preostao je samo još jedan korak:")
+    .setDescription(
+      "• Molim te otvori PDF račun koji je stigao putem emaila.\n" +
+        '• Na njemu ćeš gore desno pronaći "Invoice. No." koji počinje sa "SM-".\n' +
+        '• Kopiraj cijeli tekst, uključujući "SM-" i sve znakove koje slijede.\n' +
+        '• Klikni ispod na dugme "Pridruži se", upiši sve podatke i kopiraj taj broj u polje za fakturu.'
+    )
+    .setColor(0x00ae86)
+    .setFooter({
+      text: "📌 Klikni na dugme ispod da se pridružiš!",
+    })
+    .setTimestamp();
+}
+
+/**
+ * Create Mentorship #2 registration success embed with Thinkific instructions (Croatian)
+ * @param {Object} data - Registration data
+ * @returns {EmbedBuilder} - Success embed with Thinkific info
+ */
+function createMentorship2SuccessEmbed(data) {
+  const { nickname, roleAssigned } = data;
+
+  const memberStatusText = roleAssigned
+    ? "✅ Verificiran"
+    : "⚠️ Dodjela uloge nije uspjela";
+
+  const thinkificInstructions =
+    "🎥 **Pristup SEOLAXY Masterclass videosima**\n\n" +
+    "Dok čekaš početak mentorship programa, možeš odmah započeti učenje tako što odgledaš Masterclass lekcije na Thinkificu.\n\n" +
+    "Molim te registruj se na Thinkific putem ovog linka koristeći svog Google Account:\n" +
+    "https://courses.thinkific.com/users/auth/google?ss%5Breferral%5D=&ss%5Buser_return_to%5D=&ss%5Bvisitor_id%5D=3332071156\n\n" +
+    "Ako ne radi link, onda se preko ovog linka registruj klikom na Google ikonicu:\n" +
+    "https://seolaxy.thinkific.com/users/sign_up\n\n" +
+    "Odobrenje na Thinkificu može potrajati to 24h. Nakon 24h pogledaj u svoj email inbox, trebao ti je stići email od Thinkifica. Pokušaj se logovati sa tim podacima na sljedećem linku 👉 https://seolaxy.thinkific.com/users/sign_in\n\n" +
+    "Ako se ne možeš ulogovati nakon 24h, piši u kanal <#1463968532445532424> pa ćemo se pobrinuti da ti omogućimo pristup čim prije.\n\n" +
+    'Ako ti je logovanje bilo uspješno, klikni na "next" (dole desno, bijela strelica u ljubičastom krugu)';
+
+  return new EmbedBuilder()
+    .setTitle("✅ Registracija uspješna!")
+    .setDescription(
+      `Čestitam, registracija je uspješna.\n\n${thinkificInstructions}`
+    )
+    .addFields(
+      {
+        name: "Nadimak",
+        value: nickname || "Nadimak nije mogao biti postavljen",
+        inline: true,
+      },
+      {
+        name: "Status člana",
+        value: memberStatusText,
+        inline: true,
+      }
+    )
+    .setColor(roleAssigned ? 0x00ff00 : 0xff9900)
+    .setTimestamp();
+}
+
+/**
+ * Generate Mentorship #2 users embed with pagination
+ * @param {number} page - Current page number
+ * @returns {Object} - Embed and pagination info
+ */
+async function generateMentorship2UsersEmbed(page = 1) {
+  const users = await database.fetchMentorship2Users();
+  const totalUsers = users.length;
+  const totalPages = Math.max(1, Math.ceil(totalUsers / USERS_PER_PAGE));
+
+  page = Math.max(1, Math.min(page, totalPages));
+
+  const embed = new EmbedBuilder()
+    .setTitle("📊 Mentorship #2 - Registrirani korisnici")
+    .setColor(0x00ae86)
+    .setTimestamp();
+
+  if (totalUsers === 0) {
+    embed.setDescription("Još nema registriranih korisnika.");
+    embed.setFooter({ text: "Ukupno korisnika: 0" });
+    return { embed, totalPages: 0 };
+  }
+
+  const startIndex = (page - 1) * USERS_PER_PAGE;
+  const endIndex = Math.min(startIndex + USERS_PER_PAGE, totalUsers);
+  const displayUsers = users.slice(startIndex, endIndex);
+
+  let description = "";
+  description += `**📈 Ukupno:** ${totalUsers} korisnika\n`;
+  description += "━".repeat(30) + "\n\n";
+
+  for (let i = 0; i < displayUsers.length; i++) {
+    const user = displayUsers[i];
+    const globalIndex = startIndex + i + 1;
+
+    let userInfo =
+      `**${globalIndex}.** ${user.first_name || "—"} ${user.last_name || "—"}\n` +
+      `🆔 ${user.discord_username}\n` +
+      `📧 ${user.email || "N/A"}\n` +
+      `🏷️ ${user.project_name || "searching"}\n` +
+      `📄 ${user.invoice_number || "N/A"}\n`;
+
+    userInfo += "\n";
+    description += userInfo;
+  }
+
+  if (totalPages > 1) {
+    description += `\n➖\n📄 **Stranica ${page} od ${totalPages}** | Korisnici ${
+      startIndex + 1
+    }-${endIndex} od ${totalUsers}`;
+  } else {
+    description += `\n➖\n📄 Svi korisnici: ${totalUsers}`;
+  }
+
+  embed.setDescription(description);
+  embed.setFooter({
+    text: `Ukupno: ${totalUsers} | Stranica ${page}/${totalPages}`,
+  });
+
+  return { embed, totalPages };
+}
+
 module.exports = {
   createJoinEmbed,
   createEnglishJoinEmbed,
@@ -470,4 +598,8 @@ module.exports = {
   createBosnianSubscribeEmbed,
   createSubscriptionCheckoutEmbed,
   createSubscriptionStatusEmbed,
+  // Mentorship #2 embeds
+  createMentorship2JoinEmbed,
+  createMentorship2SuccessEmbed,
+  generateMentorship2UsersEmbed,
 };

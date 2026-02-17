@@ -497,10 +497,34 @@ async function markExistingUsersAsLegacy(gracePeriodDays = 30) {
   }
 }
 
+/**
+ * Fetch Mentorship #2 users (identified by invoice_number pattern SM-%/2026)
+ * @returns {Array} - Array of Mentorship #2 user objects
+ */
+async function fetchMentorship2Users() {
+  try {
+    if (!dbPool) {
+      logger.warn("Database not available, cannot fetch Mentorship #2 users");
+      return [];
+    }
+
+    const [rows] = await dbPool.execute(
+      "SELECT * FROM users WHERE invoice_number LIKE 'SM-%/2026' ORDER BY created_at DESC"
+    );
+    return rows;
+  } catch (error) {
+    logger.error(
+      `Error fetching Mentorship #2 users from database: ${error.message}`
+    );
+    return [];
+  }
+}
+
 module.exports = {
   initDatabase,
   saveUser,
   fetchAllUsers,
+  fetchMentorship2Users,
   checkPaymentIntentExists,
   getUserByDiscordId,
   getPool,
