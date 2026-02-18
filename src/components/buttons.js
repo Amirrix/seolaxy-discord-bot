@@ -186,6 +186,25 @@ function createMentorship2ExportButton() {
 }
 
 /**
+ * Create Mentorship #2 Remove/Edit user buttons row
+ * @returns {ActionRowBuilder} - Button row
+ */
+function createMentorship2ManageUserButtons() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("m2_remove_user")
+      .setLabel("Ukloni korisnika")
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji("🗑️"),
+    new ButtonBuilder()
+      .setCustomId("m2_edit_user")
+      .setLabel("Uredi korisnika")
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji("✏️")
+  );
+}
+
+/**
  * Create Mentorship #2 user interface buttons
  * @param {number} totalPages - Total pages
  * @param {number} page - Current page
@@ -200,6 +219,7 @@ function createMentorship2UserInterfaceButtons(totalPages, page = 1) {
 
   if (totalPages > 0) {
     components.push(createMentorship2ExportButton());
+    components.push(createMentorship2ManageUserButtons());
   }
 
   return components;
@@ -218,5 +238,6 @@ module.exports = {
   createMentorship2JoinButton,
   createMentorship2PaginationButtons,
   createMentorship2ExportButton,
+  createMentorship2ManageUserButtons,
   createMentorship2UserInterfaceButtons,
 };

@@ -3,9 +3,14 @@
  * Handles Discord button interaction events
  */
 
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const logger = require("../utils/logger");
-const { createRegistrationModal } = require("../components/modals");
+const {
+  createRegistrationModal,
+  createMentorship2Modal,
+  createMentorship2RemoveUserModal,
+  createMentorship2EditUserModal,
+} = require("../components/modals");
 const csvExport = require("../services/csvExport");
 const database = require("../services/database");
 const stripeService = require("../services/stripeService");
@@ -20,7 +25,6 @@ const {
   createUserInterfaceButtons,
   createMentorship2UserInterfaceButtons,
 } = require("../components/buttons");
-const { createMentorship2Modal } = require("../components/modals");
 const channels = require("../constants/channels");
 
 // Store pagination state (main server)
@@ -466,6 +470,50 @@ async function handleMentorship2JoinButton(interaction) {
 }
 
 /**
+ * Check if member can manage M2 users (Administrator or Manage Guild)
+ * @param {GuildMember} member - Discord guild member
+ * @returns {boolean}
+ */
+function canManageM2Users(member) {
+  return (
+    member.permissions.has(PermissionFlagsBits.Administrator) ||
+    member.permissions.has(PermissionFlagsBits.ManageGuild)
+  );
+}
+
+/**
+ * Handle Mentorship #2 "Remove user" button click
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleMentorship2RemoveUserButton(interaction) {
+  if (!canManageM2Users(interaction.member)) {
+    await interaction.reply({
+      content: "❌ Nemaš ovlasti za uklanjanje korisnika.",
+      flags: 64,
+    });
+    return;
+  }
+  const modal = createMentorship2RemoveUserModal();
+  await interaction.showModal(modal);
+}
+
+/**
+ * Handle Mentorship #2 "Edit user" button click
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleMentorship2EditUserButton(interaction) {
+  if (!canManageM2Users(interaction.member)) {
+    await interaction.reply({
+      content: "❌ Nemaš ovlasti za uređivanje korisnika.",
+      flags: 64,
+    });
+    return;
+  }
+  const modal = createMentorship2EditUserModal();
+  await interaction.showModal(modal);
+}
+
+/**
  * Handle Mentorship #2 users pagination button clicks
  * @param {Interaction} interaction - Discord interaction
  */
@@ -639,6 +687,10 @@ async function handleButton(interaction) {
       await handleUsersPaginationButton(interaction);
     } else if (interaction.customId === "mentorship2_join") {
       await handleMentorship2JoinButton(interaction);
+    } else if (interaction.customId === "m2_remove_user") {
+      await handleMentorship2RemoveUserButton(interaction);
+    } else if (interaction.customId === "m2_edit_user") {
+      await handleMentorship2EditUserButton(interaction);
     } else if (interaction.customId === "m2_users_export_csv") {
       await handleMentorship2UsersExportButton(interaction);
     } else if (interaction.customId.startsWith("m2_users_")) {

@@ -520,6 +520,115 @@ async function fetchMentorship2Users() {
   }
 }
 
+/**
+ * Get user by invoice number
+ * @param {string} invoiceNumber - Invoice number (e.g. SM-0005/2026)
+ * @returns {Object|null} - User object or null if not found
+ */
+async function getUserByInvoiceNumber(invoiceNumber) {
+  try {
+    if (!dbPool) {
+      logger.warn("Database not available, cannot lookup user by invoice");
+      return null;
+    }
+
+    const [rows] = await dbPool.execute(
+      "SELECT * FROM users WHERE invoice_number = ? LIMIT 1",
+      [invoiceNumber]
+    );
+
+    return rows.length > 0 ? rows[0] : null;
+  } catch (error) {
+    logger.error(
+      `Error looking up user by invoice number: ${error.message}`
+    );
+    return null;
+  }
+}
+
+/**
+ * Find user by Discord ID or invoice number
+ * @param {string} identifier - Discord ID (snowflake) or invoice number
+ * @returns {Object|null} - User object or null if not found
+ */
+async function findUserByIdentifier(identifier) {
+  const trimmed = String(identifier).trim();
+  if (!trimmed) return null;
+  if (/^\d{17,19}$/.test(trimmed)) {
+    return getUserByDiscordId(trimmed);
+  }
+  return getUserByInvoiceNumber(trimmed);
+}
+
+/**
+ * Delete user by Discord ID
+ * @param {string} discordId - Discord user ID
+ * @returns {boolean} - Success status
+ */
+async function deleteUser(discordId) {
+  try {
+    if (!dbPool) {
+      logger.warn("Database not available, cannot delete user");
+      return false;
+    }
+
+    const [result] = await dbPool.execute(
+      "DELETE FROM users WHERE discord_id = ?",
+      [discordId]
+    );
+
+    if (result.affectedRows > 0) {
+      logger.info(`Deleted user with Discord ID ${discordId}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    logger.error(`Error deleting user: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Update user profile (first name, last name, email, project name)
+ * @param {string} discordId - Discord user ID
+ * @param {Object} updates - Fields to update (first_name, last_name, email, project_name)
+ * @returns {boolean} - Success status
+ */
+async function updateUser(discordId, updates) {
+  try {
+    if (!dbPool) {
+      logger.warn("Database not available, cannot update user");
+      return false;
+    }
+
+    const allowed = ["first_name", "last_name", "email", "project_name"];
+    const setClauses = [];
+    const values = [];
+
+    for (const key of allowed) {
+      if (updates[key] !== undefined && updates[key] !== null) {
+        setClauses.push(`${key} = ?`);
+        values.push(updates[key]);
+      }
+    }
+
+    if (setClauses.length === 0) return true;
+
+    values.push(discordId);
+    const query = `UPDATE users SET ${setClauses.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE discord_id = ?`;
+    const [result] = await dbPool.execute(query, values);
+
+    if (result.affectedRows > 0) {
+      logger.info(`Updated user ${discordId}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    logger.error(`Error updating user: ${error.message}`);
+    return false;
+  }
+}
+
 module.exports = {
   initDatabase,
   saveUser,
@@ -527,6 +636,10 @@ module.exports = {
   fetchMentorship2Users,
   checkPaymentIntentExists,
   getUserByDiscordId,
+  getUserByInvoiceNumber,
+  findUserByIdentifier,
+  deleteUser,
+  updateUser,
   getPool,
   // Subscription-related exports
   saveSubscriptionUser,

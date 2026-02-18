@@ -337,6 +337,144 @@ async function handleMentorship2JoinModal(interaction) {
 }
 
 /**
+ * Handle Mentorship #2 "Remove user" modal submission
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleMentorship2RemoveUserModal(interaction) {
+  await interaction.deferReply({ flags: 64 });
+
+  const identifier = interaction.fields.getTextInputValue("identifier").trim();
+  if (!identifier) {
+    await interaction.editReply({
+      content: "❌ Unesi broj fakture ili Discord ID.",
+    });
+    return;
+  }
+
+  const user = await database.findUserByIdentifier(identifier);
+  if (!user) {
+    await interaction.editReply({
+      content: "❌ Korisnik nije pronađen u bazi.",
+    });
+    return;
+  }
+
+  if (!user.invoice_number || !user.invoice_number.match(/^SM-.+\/2026$/)) {
+    await interaction.editReply({
+      content:
+        "❌ Korisnik nije iz Mentorship #2 (broj fakture mora biti SM-.../2026).",
+    });
+    return;
+  }
+
+  const deleted = await database.deleteUser(user.discord_id);
+  if (!deleted) {
+    await interaction.editReply({
+      content: "❌ Greška pri brisanju korisnika iz baze.",
+    });
+    return;
+  }
+
+  try {
+    const member = await interaction.guild.members.fetch(user.discord_id).catch(() => null);
+    if (member) {
+      const role = interaction.guild.roles.cache.get(ROLES.MENTORSHIP2_VERIFIED);
+      if (role && member.roles.cache.has(ROLES.MENTORSHIP2_VERIFIED)) {
+        await member.roles.remove(role);
+        logger.info(`Removed M2 verified role from ${user.discord_username}`);
+      }
+    }
+  } catch (err) {
+    logger.warn(`Could not remove role from member: ${err.message}`);
+  }
+
+  await updateMentorship2UsersEmbed();
+  await interaction.editReply({
+    content: `✅ Korisnik **${user.first_name} ${user.last_name}** (${user.invoice_number}) je uklonjen.`,
+  });
+  logger.info(`M2 user removed by ${interaction.user.tag}: ${user.discord_id}`);
+}
+
+/**
+ * Handle Mentorship #2 "Edit user" modal submission
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleMentorship2EditUserModal(interaction) {
+  await interaction.deferReply({ flags: 64 });
+
+  const identifier = interaction.fields.getTextInputValue("identifier").trim();
+  if (!identifier) {
+    await interaction.editReply({
+      content: "❌ Unesi broj fakture ili Discord ID.",
+    });
+    return;
+  }
+
+  const user = await database.findUserByIdentifier(identifier);
+  if (!user) {
+    await interaction.editReply({
+      content: "❌ Korisnik nije pronađen u bazi.",
+    });
+    return;
+  }
+
+  if (!user.invoice_number || !user.invoice_number.match(/^SM-.+\/2026$/)) {
+    await interaction.editReply({
+      content:
+        "❌ Korisnik nije iz Mentorship #2 (broj fakture mora biti SM-.../2026).",
+    });
+    return;
+  }
+
+  const first_name = interaction.fields.getTextInputValue("first_name")?.trim() || null;
+  const last_name = interaction.fields.getTextInputValue("last_name")?.trim() || null;
+  const email = interaction.fields.getTextInputValue("email")?.trim() || null;
+  const project_name = interaction.fields.getTextInputValue("project_name")?.trim() || null;
+
+  const updates = {};
+  if (first_name !== null && first_name !== "") updates.first_name = first_name;
+  if (last_name !== null && last_name !== "") updates.last_name = last_name;
+  if (email !== null && email !== "") updates.email = email;
+  if (project_name !== null && project_name !== "") updates.project_name = project_name;
+
+  if (Object.keys(updates).length === 0) {
+    await interaction.editReply({
+      content: "❌ Nisi unio nijedno polje za ažuriranje.",
+    });
+    return;
+  }
+
+  const updated = await database.updateUser(user.discord_id, updates);
+  if (!updated) {
+    await interaction.editReply({
+      content: "❌ Greška pri ažuriranju korisnika.",
+    });
+    return;
+  }
+
+  const newFirstName = updates.first_name ?? user.first_name;
+  const newLastName = updates.last_name ?? user.last_name;
+  const newProjectName = updates.project_name ?? user.project_name ?? "searching";
+
+  try {
+    const member = await interaction.guild.members.fetch(user.discord_id).catch(() => null);
+    if (member) {
+      const nickname = buildNickname(newFirstName, newLastName, newProjectName);
+      await member.setNickname(nickname);
+      logger.info(`Updated M2 nickname for ${user.discord_username} to ${nickname}`);
+    }
+  } catch (err) {
+    logger.warn(`Could not set nickname: ${err.message}`);
+  }
+
+  await updateMentorship2UsersEmbed();
+  await interaction.editReply({
+    content: `✅ Korisnik **${user.first_name} ${user.last_name}** je ažuriran.`,
+  });
+  logger.info(`M2 user edited by ${interaction.user.tag}: ${user.discord_id}`);
+}
+
+/**
  * Main modal handler router
  * @param {Interaction} interaction - Discord interaction
  */
@@ -348,6 +486,12 @@ async function handleModal(interaction) {
         break;
       case "mentorship2_join_modal":
         await handleMentorship2JoinModal(interaction);
+        break;
+      case "m2_remove_user_modal":
+        await handleMentorship2RemoveUserModal(interaction);
+        break;
+      case "m2_edit_user_modal":
+        await handleMentorship2EditUserModal(interaction);
         break;
       default:
         logger.warn(`Unknown modal interaction: ${interaction.customId}`);
@@ -361,4 +505,6 @@ module.exports = {
   handleModal,
   handleJoinModal,
   handleMentorship2JoinModal,
+  handleMentorship2RemoveUserModal,
+  handleMentorship2EditUserModal,
 };
