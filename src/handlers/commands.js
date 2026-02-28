@@ -68,13 +68,13 @@ async function handleTestResetCommand(interaction) {
     logger.error(`Test-reset role removal failed for ${discordId}: ${err.message}`);
   }
 
-  // 3. Reset DB subscription data
+  // 3. Delete user from DB entirely so they can re-register fresh
   try {
-    await database.resetUserSubscriptionData(discordId);
-    results.push("DB subscription data cleared");
+    await database.deleteUser(discordId);
+    results.push("User deleted from database");
   } catch (err) {
-    results.push(`DB reset failed: ${err.message}`);
-    logger.error(`Test-reset DB reset failed for ${discordId}: ${err.message}`);
+    results.push(`DB delete failed: ${err.message}`);
+    logger.error(`Test-reset DB delete failed for ${discordId}: ${err.message}`);
   }
 
   // 4. Send DM notification

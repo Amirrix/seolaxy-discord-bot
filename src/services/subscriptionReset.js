@@ -124,13 +124,13 @@ async function executeReset() {
           );
         }
 
-        // 3. Reset DB subscription data
+        // 3. Delete user from DB entirely so they can re-register fresh
         try {
-          await database.resetUserSubscriptionData(user.discord_id);
-          logger.info(`Reset DB data for ${user.discord_username}`);
+          await database.deleteUser(user.discord_id);
+          logger.info(`Deleted DB entry for ${user.discord_username}`);
         } catch (dbError) {
           logger.error(
-            `Failed to reset DB for ${user.discord_username}: ${dbError.message}`
+            `Failed to delete DB entry for ${user.discord_username}: ${dbError.message}`
           );
         }
 
