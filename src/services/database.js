@@ -629,6 +629,105 @@ async function updateUser(discordId, updates) {
   }
 }
 
+/**
+ * Reset user subscription data (set stripe fields to NULL, status to 'none')
+ * Used during subscription reset to clear all subscription data
+ * @param {string} discordId - Discord user ID
+ * @returns {boolean} - Success status
+ */
+async function resetUserSubscriptionData(discordId) {
+  try {
+    if (!dbPool) {
+      logger.warn("Database not available, cannot reset subscription data");
+      return false;
+    }
+
+    const [result] = await dbPool.execute(
+      `UPDATE users SET
+        stripe_customer_id = NULL,
+        stripe_subscription_id = NULL,
+        subscription_status = 'none',
+        subscription_ends_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE discord_id = ?`,
+      [discordId]
+    );
+
+    if (result.affectedRows > 0) {
+      logger.info(`Reset subscription data for Discord ID ${discordId}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    logger.error(`Error resetting subscription data: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Ensure bot_state table exists for storing flags
+ */
+async function ensureBotStateTable() {
+  try {
+    if (!dbPool) {
+      logger.warn("Database not available, cannot ensure bot_state table");
+      return;
+    }
+
+    await dbPool.execute(`
+      CREATE TABLE IF NOT EXISTS bot_state (
+        key_name VARCHAR(100) PRIMARY KEY,
+        value VARCHAR(255),
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } catch (error) {
+    logger.error(`Error creating bot_state table: ${error.message}`);
+  }
+}
+
+/**
+ * Get a bot state flag value
+ * @param {string} flagName - Flag name
+ * @returns {string|null} - Flag value or null
+ */
+async function getResetFlag(flagName) {
+  try {
+    if (!dbPool) return null;
+
+    const [rows] = await dbPool.execute(
+      "SELECT value FROM bot_state WHERE key_name = ? LIMIT 1",
+      [flagName]
+    );
+
+    return rows.length > 0 ? rows[0].value : null;
+  } catch (error) {
+    logger.error(`Error getting reset flag: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Set a bot state flag value (upsert)
+ * @param {string} flagName - Flag name
+ * @param {string} value - Flag value
+ */
+async function setResetFlag(flagName, value) {
+  try {
+    if (!dbPool) return;
+
+    await dbPool.execute(
+      `INSERT INTO bot_state (key_name, value) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE value = ?, updated_at = CURRENT_TIMESTAMP`,
+      [flagName, value, value]
+    );
+
+    logger.info(`Set bot state flag '${flagName}' = '${value}'`);
+  } catch (error) {
+    logger.error(`Error setting reset flag: ${error.message}`);
+  }
+}
+
 module.exports = {
   initDatabase,
   saveUser,
@@ -649,4 +748,9 @@ module.exports = {
   getUsersWithExpiringSubscriptions,
   getUserByStripeCustomerId,
   markExistingUsersAsLegacy,
+  // Subscription reset exports
+  resetUserSubscriptionData,
+  ensureBotStateTable,
+  getResetFlag,
+  setResetFlag,
 };

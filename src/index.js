@@ -16,6 +16,7 @@ const channels = require("./constants/channels");
 // Services
 const database = require("./services/database");
 const subscriptionService = require("./services/subscriptionService");
+const subscriptionReset = require("./services/subscriptionReset");
 
 // Handlers
 const { handleCommand } = require("./handlers/commands");
@@ -178,6 +179,10 @@ client.once(Events.ClientReady, async (readyClient) => {
   subscriptionService.init(client);
   subscriptionService.startPolling();
   logger.info("💳 Subscription polling service started");
+
+  // Initialize subscription reset scheduler (one-time March 1, 2026)
+  subscriptionReset.init(client);
+  await subscriptionReset.scheduleReset();
 
   // Set bot activity status
   client.user.setActivity(discordConfig.activity.name, {

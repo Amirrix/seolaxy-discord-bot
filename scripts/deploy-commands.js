@@ -7,7 +7,10 @@ const commands = [
     name: "hello",
     description: "Replies with Hello World!",
   },
-  // Add more commands here in the future
+  {
+    name: "test-reset",
+    description: "Test subscription reset on yourself (cancels sub, removes roles, clears DB, sends DM)",
+  },
 ];
 
 // Deploy commands function
