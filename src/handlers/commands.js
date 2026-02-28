@@ -39,10 +39,8 @@ async function handleTestResetCommand(interaction) {
     return;
   }
 
-  if (!dbUser.stripe_subscription_id && dbUser.subscription_status === "none") {
-    await interaction.editReply({ content: "You don't have an active subscription to reset." });
-    return;
-  }
+  // Even if subscription data is already cleared, still delete the user
+  // so they can go through fresh registration
 
   const results = [];
 
