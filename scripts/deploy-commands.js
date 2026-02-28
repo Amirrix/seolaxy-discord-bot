@@ -1,4 +1,4 @@
-const { REST, Routes } = require("discord.js");
+const { REST, Routes, PermissionFlagsBits } = require("discord.js");
 require("dotenv").config();
 
 // Array of slash commands to register
@@ -10,6 +10,11 @@ const commands = [
   {
     name: "test-reset",
     description: "Test subscription reset on yourself (cancels sub, removes roles, clears DB, sends DM)",
+  },
+  {
+    name: "test-mode",
+    description: "Toggle Stripe between test and live mode (admin only)",
+    default_member_permissions: String(PermissionFlagsBits.Administrator),
   },
 ];
 

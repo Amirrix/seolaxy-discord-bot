@@ -104,6 +104,34 @@ async function handleTestResetCommand(interaction) {
 }
 
 /**
+ * Handle test-mode command - toggle Stripe between test and live mode (admin only)
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleTestModeCommand(interaction) {
+  logger.info(`Test-mode command used by ${interaction.user.tag}`);
+
+  const currentlyTest = stripeService.getIsTestMode();
+
+  if (currentlyTest) {
+    const success = stripeService.switchToLiveMode();
+    await interaction.reply({
+      content: success
+        ? "Switched to **LIVE** mode. Stripe is now using live keys."
+        : "Failed to switch to live mode. Check logs.",
+      flags: 64,
+    });
+  } else {
+    const success = stripeService.switchToTestMode();
+    await interaction.reply({
+      content: success
+        ? "Switched to **TEST** mode. Stripe is now using test keys."
+        : "Failed to switch to test mode. Check that STRIPE_TEST_SECRET_KEY is set.",
+      flags: 64,
+    });
+  }
+}
+
+/**
  * Handle unknown command
  * @param {Interaction} interaction - Discord interaction
  */
@@ -131,6 +159,9 @@ async function handleCommand(interaction) {
       case "test-reset":
         await handleTestResetCommand(interaction);
         break;
+      case "test-mode":
+        await handleTestModeCommand(interaction);
+        break;
       default:
         await handleUnknownCommand(interaction);
     }
@@ -154,5 +185,6 @@ module.exports = {
   handleCommand,
   handleHelloCommand,
   handleTestResetCommand,
+  handleTestModeCommand,
   handleUnknownCommand,
 };

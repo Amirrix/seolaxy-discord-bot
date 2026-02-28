@@ -9,6 +9,7 @@ const logger = require("../utils/logger");
 
 // Initialize Stripe client
 let stripe = null;
+let isTestMode = false;
 
 /**
  * Initialize Stripe client
@@ -372,6 +373,54 @@ async function getAllActiveSubscriptions() {
   }
 }
 
+/**
+ * Switch Stripe to test mode (uses test keys, test price)
+ */
+function switchToTestMode() {
+  const testKey = process.env.STRIPE_TEST_SECRET_KEY;
+  const testPrice = process.env.STRIPE_TEST_PRICE_ID;
+
+  if (!testKey) {
+    logger.error("Stripe test secret key not configured");
+    return false;
+  }
+
+  stripeConfig.secretKey = testKey;
+  stripeConfig.priceId = testPrice || stripeConfig.priceId;
+  stripe = null; // Force re-initialization
+  isTestMode = true;
+
+  const result = initStripe();
+  if (result) {
+    logger.info("Stripe switched to TEST mode");
+  }
+  return result;
+}
+
+/**
+ * Switch Stripe back to live mode
+ */
+function switchToLiveMode() {
+  stripeConfig.secretKey = process.env.STRIPE_SECRET_KEY;
+  stripeConfig.priceId = process.env.STRIPE_PRICE_ID;
+  stripe = null; // Force re-initialization
+  isTestMode = false;
+
+  const result = initStripe();
+  if (result) {
+    logger.info("Stripe switched to LIVE mode");
+  }
+  return result;
+}
+
+/**
+ * Check if currently in test mode
+ * @returns {boolean}
+ */
+function getIsTestMode() {
+  return isTestMode;
+}
+
 module.exports = {
   initStripe,
   createCheckoutSession,
@@ -381,4 +430,7 @@ module.exports = {
   cancelSubscription,
   getCustomerByDiscordId,
   getAllActiveSubscriptions,
+  switchToTestMode,
+  switchToLiveMode,
+  getIsTestMode,
 };
