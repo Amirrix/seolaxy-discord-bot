@@ -180,9 +180,8 @@ client.once(Events.ClientReady, async (readyClient) => {
   subscriptionService.startPolling();
   logger.info("💳 Subscription polling service started");
 
-  // Initialize subscription reset scheduler (one-time March 1, 2026)
+  // Initialize subscription reset service (triggered manually via /reset-all command)
   subscriptionReset.init(client);
-  await subscriptionReset.scheduleReset();
 
   // Set bot activity status
   client.user.setActivity(discordConfig.activity.name, {

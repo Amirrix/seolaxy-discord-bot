@@ -16,6 +16,11 @@ const commands = [
     description: "Toggle Stripe between test and live mode (admin only)",
     default_member_permissions: String(PermissionFlagsBits.Administrator),
   },
+  {
+    name: "reset-all",
+    description: "Reset all active subscriptions: cancel Stripe, remove roles, delete from DB, DM users (admin only)",
+    default_member_permissions: String(PermissionFlagsBits.Administrator),
+  },
 ];
 
 // Deploy commands function

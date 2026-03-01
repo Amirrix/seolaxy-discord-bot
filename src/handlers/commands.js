@@ -7,6 +7,7 @@ const logger = require("../utils/logger");
 const database = require("../services/database");
 const stripeService = require("../services/stripeService");
 const subscriptionService = require("../services/subscriptionService");
+const subscriptionReset = require("../services/subscriptionReset");
 
 /**
  * Handle hello command
@@ -132,6 +133,40 @@ async function handleTestModeCommand(interaction) {
 }
 
 /**
+ * Handle reset-all command - resets all active subscriptions (admin only)
+ * Cancels Stripe subs, removes roles, deletes from DB, and DMs all verified users
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function handleResetAllCommand(interaction) {
+  logger.info(`Reset-all command used by ${interaction.user.tag}`);
+
+  await interaction.deferReply({ flags: 64 });
+
+  try {
+    const result = await subscriptionReset.executeReset();
+
+    if (result.totalCount === 0) {
+      await interaction.editReply({
+        content: "No active subscribers found to reset.",
+      });
+    } else {
+      await interaction.editReply({
+        content:
+          `**Subscription reset completed:**\n` +
+          `• Total users: ${result.totalCount}\n` +
+          `• Successful: ${result.successCount}\n` +
+          `• Errors: ${result.errorCount}`,
+      });
+    }
+  } catch (error) {
+    logger.error(`Reset-all command error: ${error.message}`);
+    await interaction.editReply({
+      content: `Reset failed: ${error.message}`,
+    });
+  }
+}
+
+/**
  * Handle unknown command
  * @param {Interaction} interaction - Discord interaction
  */
@@ -162,6 +197,9 @@ async function handleCommand(interaction) {
       case "test-mode":
         await handleTestModeCommand(interaction);
         break;
+      case "reset-all":
+        await handleResetAllCommand(interaction);
+        break;
       default:
         await handleUnknownCommand(interaction);
     }
@@ -186,5 +224,6 @@ module.exports = {
   handleHelloCommand,
   handleTestResetCommand,
   handleTestModeCommand,
+  handleResetAllCommand,
   handleUnknownCommand,
 };

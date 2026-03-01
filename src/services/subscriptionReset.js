@@ -1,18 +1,24 @@
 /**
  * Subscription Reset Service
- * One-time reset of all Stripe subscriptions on March 1, 2026 at 10:00 CET (09:00 UTC)
+ * Manual reset of all verified members via admin command
+ * Finds members by Discord role (not DB), DMs them, removes roles, and deletes from DB
  */
 
 const database = require("./database");
 const stripeService = require("./stripeService");
-const subscriptionService = require("./subscriptionService");
+const ROLES = require("../constants/roles");
 const logger = require("../utils/logger");
 
 let discordClient = null;
 
-const RESET_TARGET = new Date("2026-03-01T09:00:00.000Z"); // 10:00 CET = 09:00 UTC
-const RESET_FLAG_NAME = "subscription_reset_2026_03_01";
 const DELAY_BETWEEN_USERS_MS = 2000;
+
+// Member roles that indicate a verified/active user
+const MEMBER_ROLE_IDS = [
+  ROLES.MEMBER,
+  ROLES.ENGLISH_MEMBER,
+  ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER,
+];
 
 /**
  * Initialize the subscription reset service
@@ -23,150 +29,128 @@ function init(client) {
 }
 
 /**
- * Schedule the subscription reset
- * Uses setTimeout to trigger at the target time
- */
-async function scheduleReset() {
-  try {
-    await database.ensureBotStateTable();
-
-    const flag = await database.getResetFlag(RESET_FLAG_NAME);
-    if (flag === "completed") {
-      logger.info("Subscription reset already completed, skipping schedule");
-      return;
-    }
-
-    const now = Date.now();
-    const targetMs = RESET_TARGET.getTime();
-    const delayMs = targetMs - now;
-
-    if (delayMs <= 0) {
-      logger.info(
-        "Subscription reset target time has passed, executing immediately"
-      );
-      executeReset();
-    } else {
-      const hoursUntil = (delayMs / (1000 * 60 * 60)).toFixed(1);
-      logger.info(
-        `Subscription reset scheduled in ${hoursUntil} hours (${RESET_TARGET.toISOString()})`
-      );
-      setTimeout(() => executeReset(), delayMs);
-    }
-  } catch (error) {
-    logger.error(`Error scheduling subscription reset: ${error.message}`);
-  }
-}
-
-/**
  * Execute the subscription reset
- * Cancels all Stripe subscriptions, removes roles, clears DB data, and DMs users
+ * Finds all guild members with verified roles, DMs them, removes roles, adds UNVERIFIED, deletes from DB
+ * @returns {Object} Result with successCount, errorCount, and totalCount
  */
 async function executeReset() {
-  try {
-    logger.info("=== STARTING SUBSCRIPTION RESET ===");
+  logger.info("=== STARTING SUBSCRIPTION RESET ===");
 
-    // Double-check flag to prevent duplicate execution
-    const flag = await database.getResetFlag(RESET_FLAG_NAME);
-    if (flag === "completed") {
-      logger.info("Subscription reset already completed (flag check), aborting");
-      return;
-    }
+  if (!discordClient) {
+    throw new Error("Discord client not initialized");
+  }
 
-    // Mark as in-progress
-    await database.setResetFlag(RESET_FLAG_NAME, "in_progress");
+  const guild = discordClient.guilds.cache.get(process.env.GUILD_ID);
+  if (!guild) {
+    throw new Error("Main guild not found");
+  }
 
-    // Fetch all active subscribers
-    const activeUsers = await database.getUsersWithActiveSubscriptions();
-    logger.info(
-      `Found ${activeUsers.length} active subscribers to reset`
-    );
+  // Fetch all guild members to ensure cache is populated
+  await guild.members.fetch();
 
-    if (activeUsers.length === 0) {
-      logger.info("No active subscribers found, marking as completed");
-      await database.setResetFlag(RESET_FLAG_NAME, "completed");
-      return;
-    }
+  // Find all members who have any of the member roles
+  const membersToReset = guild.members.cache.filter((member) =>
+    MEMBER_ROLE_IDS.some((roleId) => member.roles.cache.has(roleId))
+  );
 
-    let successCount = 0;
-    let errorCount = 0;
+  const totalCount = membersToReset.size;
+  logger.info(`Found ${totalCount} members with verified roles to reset`);
 
-    for (const user of activeUsers) {
+  if (totalCount === 0) {
+    logger.info("No verified members found");
+    return { successCount: 0, errorCount: 0, totalCount: 0 };
+  }
+
+  let successCount = 0;
+  let errorCount = 0;
+
+  const unverifiedRole = guild.roles.cache.get(ROLES.UNVERIFIED);
+
+  for (const [, member] of membersToReset) {
+    try {
+      logger.info(
+        `Processing reset for ${member.user.tag} (${member.id})`
+      );
+
+      // 1. Cancel Stripe subscription if user exists in DB
       try {
-        logger.info(
-          `Processing reset for ${user.discord_username} (${user.discord_id})`
-        );
-
-        // 1. Cancel Stripe subscription
-        if (user.stripe_subscription_id) {
+        const dbUser = await database.getUserByDiscordId(member.id);
+        if (dbUser && dbUser.stripe_subscription_id) {
           try {
             await stripeService.cancelSubscription(
-              user.stripe_subscription_id,
+              dbUser.stripe_subscription_id,
               true
             );
             logger.info(
-              `Cancelled Stripe subscription ${user.stripe_subscription_id} for ${user.discord_username}`
+              `Cancelled Stripe subscription ${dbUser.stripe_subscription_id} for ${member.user.tag}`
             );
           } catch (stripeError) {
             logger.error(
-              `Failed to cancel Stripe sub for ${user.discord_username}: ${stripeError.message}`
+              `Failed to cancel Stripe sub for ${member.user.tag}: ${stripeError.message}`
             );
-            // Continue anyway - don't block DB reset or role removal
           }
         }
-
-        // 2. Remove Discord roles (adds UNVERIFIED back)
-        try {
-          await subscriptionService.removeSubscriptionRoles(user.discord_id);
-          logger.info(`Removed roles for ${user.discord_username}`);
-        } catch (roleError) {
-          logger.error(
-            `Failed to remove roles for ${user.discord_username}: ${roleError.message}`
-          );
-        }
-
-        // 3. Delete user from DB entirely so they can re-register fresh
-        try {
-          await database.deleteUser(user.discord_id);
-          logger.info(`Deleted DB entry for ${user.discord_username}`);
-        } catch (dbError) {
-          logger.error(
-            `Failed to delete DB entry for ${user.discord_username}: ${dbError.message}`
-          );
-        }
-
-        // 4. Send DM notification
-        try {
-          await sendResetNotificationDM(user.discord_id);
-          logger.info(`Sent reset DM to ${user.discord_username}`);
-        } catch (dmError) {
-          logger.error(
-            `Failed to send DM to ${user.discord_username}: ${dmError.message}`
-          );
-        }
-
-        successCount++;
-      } catch (userError) {
-        errorCount++;
+      } catch (dbLookupError) {
         logger.error(
-          `Error processing reset for ${user.discord_username}: ${userError.message}`
+          `Failed DB lookup for ${member.user.tag}: ${dbLookupError.message}`
         );
       }
 
-      // Rate limiting delay between users
-      await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_USERS_MS));
+      // 2. Remove all member roles
+      for (const roleId of MEMBER_ROLE_IDS) {
+        if (member.roles.cache.has(roleId)) {
+          const role = guild.roles.cache.get(roleId);
+          if (role) {
+            await member.roles.remove(role);
+            logger.info(`Removed ${role.name} role from ${member.user.tag}`);
+          }
+        }
+      }
+
+      // 3. Add UNVERIFIED role back
+      if (unverifiedRole && !member.roles.cache.has(ROLES.UNVERIFIED)) {
+        await member.roles.add(unverifiedRole);
+        logger.info(`Added unverified role to ${member.user.tag}`);
+      }
+
+      // 4. Delete user from DB if they exist
+      try {
+        await database.deleteUser(member.id);
+        logger.info(`Deleted DB entry for ${member.user.tag}`);
+      } catch (dbError) {
+        logger.error(
+          `Failed to delete DB entry for ${member.user.tag}: ${dbError.message}`
+        );
+      }
+
+      // 5. Send DM notification
+      try {
+        await sendResetNotificationDM(member.id);
+        logger.info(`Sent reset DM to ${member.user.tag}`);
+      } catch (dmError) {
+        logger.error(
+          `Failed to send DM to ${member.user.tag}: ${dmError.message}`
+        );
+      }
+
+      successCount++;
+    } catch (userError) {
+      errorCount++;
+      logger.error(
+        `Error processing reset for ${member.user.tag}: ${userError.message}`
+      );
     }
 
-    // Mark as completed
-    await database.setResetFlag(RESET_FLAG_NAME, "completed");
-
-    logger.info("=== SUBSCRIPTION RESET COMPLETED ===");
-    logger.info(
-      `Results: ${successCount} successful, ${errorCount} errors out of ${activeUsers.length} users`
-    );
-  } catch (error) {
-    logger.error(`Critical error during subscription reset: ${error.message}`);
-    logger.error("Stack:", error.stack);
+    // Rate limiting delay between users
+    await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_USERS_MS));
   }
+
+  logger.info("=== SUBSCRIPTION RESET COMPLETED ===");
+  logger.info(
+    `Results: ${successCount} successful, ${errorCount} errors out of ${totalCount} users`
+  );
+
+  return { successCount, errorCount, totalCount };
 }
 
 /**
@@ -210,5 +194,5 @@ async function sendResetNotificationDM(discordId) {
 
 module.exports = {
   init,
-  scheduleReset,
+  executeReset,
 };
