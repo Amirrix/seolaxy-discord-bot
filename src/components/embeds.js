@@ -210,18 +210,18 @@ function createEnglishSubscribeEmbed() {
  */
 function createBosnianSubscribeEmbed() {
   return new EmbedBuilder()
-    .setTitle("🚀 Pretplatite se na Seolaxy")
+    .setTitle("🚀 Pretplati se na SEOLAXY Mentorship Alumni Discord")
     .setDescription(
-      "**Dobijte puni pristup svim clanskim kanalima i resursima!**\n\n" +
-        "Pretplatom cete otkljucati:\n" +
-        "• Pristup svim premium kanalima\n" +
-        "• Ekskluzivne materijale za ucenje\n" +
-        "• Podrsku zajednice i umrezavanje\n" +
-        "• Redovna azuriranja i novi sadrzaj\n\n" +
+      "**Zadrzi pristup zajednici i mentorskoj podrsci!**\n\n" +
+        "Ova pretplata namijenjena je iskljucivo clanovima prvog SEO mentorstva koji zele ostati aktivni na Discordu.\n\n" +
+        "**Pretplata ukljucuje:**\n\n" +
+        "• Pristup svim kanalima\n" +
+        "• Mogucnost postavljanja neogranicenog broja pitanja (unutar razumnih okvira kompleksnosti)\n" +
+        "• Podrsku zajednice i umrezavanje\n\n" +
         "**Kako funkcionise:**\n" +
-        "1. Kliknite na dugme **Pretplati se** ispod\n" +
-        "2. Zavrsite sigurnu naplatu na Stripe-u\n" +
-        "3. Vas pristup ce biti automatski aktiviran u roku od nekoliko minuta!\n\n" +
+        "1. Klikni na dugme **Pretplati se** ispod\n" +
+        "2. Zavrsi sigurnu naplatu na Stripeu\n" +
+        "3. Tvoj pristup ce biti automatski aktiviran u roku od nekoliko minuta!\n\n" +
         "💳 *Sigurno placanje putem Stripe-a*"
     )
     .setColor(0x6772e5) // Stripe purple
