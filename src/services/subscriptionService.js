@@ -560,26 +560,12 @@ async function assignSubscriptionRoles(discordId) {
       logger.info(`Removed unverified role from ${member.user.tag}`);
     }
 
-    // Determine which member role to assign based on language role
-    // Check Bosnian first since this is the alumni/mentorship server
-    let memberRole;
-    let roleName;
-
-    if (member.roles.cache.has(ROLES.BOSNIAN_CROATIAN_SERBIAN)) {
-      memberRole = guild.roles.cache.get(ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER);
-      roleName = "Bosnian/Croatian/Serbian Member";
-    } else if (member.roles.cache.has(ROLES.ENGLISH)) {
-      memberRole = guild.roles.cache.get(ROLES.ENGLISH_MEMBER);
-      roleName = "English Member";
-    } else {
-      // Fallback to Bosnian member role as default for this server
-      memberRole = guild.roles.cache.get(ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER);
-      roleName = "Bosnian/Croatian/Serbian Member (default)";
-    }
+    // Always assign Bosnian/Croatian/Serbian Member role on this server
+    const memberRole = guild.roles.cache.get(ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER);
 
     if (memberRole && !member.roles.cache.has(memberRole.id)) {
       await member.roles.add(memberRole);
-      logger.info(`Assigned ${roleName} role to ${member.user.tag}`);
+      logger.info(`Assigned Bosnian/Croatian/Serbian Member role to ${member.user.tag}`);
     }
   } catch (error) {
     logger.error(`Error assigning subscription roles: ${error.message}`);
@@ -801,6 +787,136 @@ function hasPendingCheckout(discordId) {
   return pendingCheckouts.has(discordId);
 }
 
+/**
+ * Full Stripe-to-database sync on bot startup.
+ * Fetches all subscriptions from Stripe and ensures the database
+ * and Discord roles are accurate.
+ */
+async function syncAllFromStripe() {
+  logger.info("Starting full Stripe → database sync...");
+
+  try {
+    const stripeSubscriptions = await stripeService.getAllActiveSubscriptions();
+    const dbUsers = await database.fetchAllUsers();
+    const dbUserMap = new Map(dbUsers.map((u) => [u.discord_id, u]));
+
+    let synced = 0;
+    let updated = 0;
+    let rolesFixed = 0;
+
+    // Build set of discord IDs with active Stripe subs for revocation pass
+    const stripeDiscordIds = new Set();
+
+    for (const stripeSub of stripeSubscriptions) {
+      const { discordId, status, subscriptionId, currentPeriodEnd, customerId } =
+        stripeSub;
+
+      stripeDiscordIds.add(discordId);
+      const dbUser = dbUserMap.get(discordId);
+
+      if (!dbUser) {
+        // User in Stripe but not in DB — create record
+        const discordUser = await fetchDiscordUser(discordId);
+        if (!discordUser) {
+          logger.warn(`Sync: Could not fetch Discord user ${discordId}, skipping`);
+          continue;
+        }
+
+        await database.saveSubscriptionUser({
+          discordId,
+          discordUsername: discordUser.tag,
+          firstName: "",
+          lastName: "",
+          email: "",
+          projectName: null,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscriptionId,
+          subscriptionStatus: status,
+          subscriptionEndsAt: currentPeriodEnd,
+        });
+        synced++;
+
+        // Assign roles if active
+        if (status === "active" || status === "trialing") {
+          await assignSubscriptionRoles(discordId);
+          rolesFixed++;
+        }
+      } else {
+        // User exists — update subscription data if anything differs
+        const statusChanged = dbUser.subscription_status !== status;
+        const subIdChanged = dbUser.stripe_subscription_id !== subscriptionId;
+        const customerIdChanged = dbUser.stripe_customer_id !== customerId;
+
+        if (statusChanged || subIdChanged || customerIdChanged) {
+          await database.updateUserSubscription(discordId, {
+            stripeCustomerId: customerId,
+            stripeSubscriptionId: subscriptionId,
+            subscriptionStatus: status,
+            subscriptionEndsAt: currentPeriodEnd,
+          });
+          updated++;
+
+          if (statusChanged) {
+            logger.info(
+              `Sync: Status changed for ${discordId}: ${dbUser.subscription_status} → ${status}`
+            );
+          }
+        }
+
+        // Ensure active users have the correct role
+        if (status === "active" || status === "trialing") {
+          await assignSubscriptionRoles(discordId);
+          rolesFixed++;
+        }
+
+        // Ensure canceled/unpaid users don't have member roles
+        if (status === "canceled" || status === "unpaid") {
+          await removeSubscriptionRoles(discordId);
+        }
+      }
+    }
+
+    // Revocation pass: DB users marked active/trialing but NOT in Stripe
+    let revoked = 0;
+    for (const dbUser of dbUsers) {
+      if (
+        (dbUser.subscription_status === "active" ||
+          dbUser.subscription_status === "trialing") &&
+        dbUser.stripe_subscription_id &&
+        !stripeDiscordIds.has(dbUser.discord_id)
+      ) {
+        // Double-check directly with Stripe
+        const result = await stripeService.getSubscriptionStatus(
+          dbUser.stripe_subscription_id
+        );
+
+        if (
+          !result.success ||
+          result.status === "canceled" ||
+          result.status === "unpaid"
+        ) {
+          const finalStatus = result.success ? result.status : "canceled";
+          logger.info(
+            `Sync: Revoking ${dbUser.discord_id} — Stripe status: ${finalStatus}`
+          );
+          await database.updateUserSubscription(dbUser.discord_id, {
+            subscriptionStatus: finalStatus,
+            subscriptionEndsAt: result.currentPeriodEnd || new Date(),
+          });
+          await removeSubscriptionRoles(dbUser.discord_id);
+          revoked++;
+        }
+      }
+    }
+
+    logger.info(
+      `Full Stripe sync complete: ${synced} new, ${updated} updated, ${rolesFixed} roles ensured, ${revoked} revoked`
+    );
+  } catch (error) {
+    logger.error(`Error during full Stripe sync: ${error.message}`);
+  }
+}
+
 module.exports = {
   init,
   startPolling,
@@ -814,4 +930,5 @@ module.exports = {
   processNewSubscription,
   getPendingCheckoutsCount,
   hasPendingCheckout,
+  syncAllFromStripe,
 };

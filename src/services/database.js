@@ -49,7 +49,7 @@ async function createUsersTable() {
         invoice_number VARCHAR(50),
         stripe_customer_id VARCHAR(50),
         stripe_subscription_id VARCHAR(50),
-        subscription_status ENUM('active', 'past_due', 'canceled', 'unpaid', 'trialing', 'none') DEFAULT 'none',
+        subscription_status ENUM('active', 'past_due', 'canceled', 'unpaid', 'trialing', 'incomplete', 'incomplete_expired', 'paused', 'none') DEFAULT 'none',
         subscription_ends_at TIMESTAMP NULL,
         is_legacy_user BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -97,7 +97,7 @@ async function addSubscriptionColumns() {
     {
       name: "subscription_status",
       definition:
-        "ENUM('active', 'past_due', 'canceled', 'unpaid', 'trialing', 'none') DEFAULT 'none'",
+        "ENUM('active', 'past_due', 'canceled', 'unpaid', 'trialing', 'incomplete', 'incomplete_expired', 'paused', 'none') DEFAULT 'none'",
     },
     {
       name: "subscription_ends_at",

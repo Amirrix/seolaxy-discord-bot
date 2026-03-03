@@ -177,6 +177,12 @@ client.once(Events.ClientReady, async (readyClient) => {
 
   // Initialize subscription service
   subscriptionService.init(client);
+
+  // Full Stripe → database sync on startup (ensures DB is accurate)
+  await subscriptionService.syncAllFromStripe();
+  logger.info("💳 Stripe sync complete — database is up to date");
+
+  // Start regular polling after sync
   subscriptionService.startPolling();
   logger.info("💳 Subscription polling service started");
 
