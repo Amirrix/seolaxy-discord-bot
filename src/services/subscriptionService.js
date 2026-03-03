@@ -561,19 +561,20 @@ async function assignSubscriptionRoles(discordId) {
     }
 
     // Determine which member role to assign based on language role
+    // Check Bosnian first since this is the alumni/mentorship server
     let memberRole;
     let roleName;
 
-    if (member.roles.cache.has(ROLES.ENGLISH)) {
-      memberRole = guild.roles.cache.get(ROLES.ENGLISH_MEMBER);
-      roleName = "English Member";
-    } else if (member.roles.cache.has(ROLES.BOSNIAN_CROATIAN_SERBIAN)) {
+    if (member.roles.cache.has(ROLES.BOSNIAN_CROATIAN_SERBIAN)) {
       memberRole = guild.roles.cache.get(ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER);
       roleName = "Bosnian/Croatian/Serbian Member";
+    } else if (member.roles.cache.has(ROLES.ENGLISH)) {
+      memberRole = guild.roles.cache.get(ROLES.ENGLISH_MEMBER);
+      roleName = "English Member";
     } else {
-      // Fallback to legacy member role
-      memberRole = guild.roles.cache.get(ROLES.MEMBER);
-      roleName = "Member";
+      // Fallback to Bosnian member role as default for this server
+      memberRole = guild.roles.cache.get(ROLES.BOSNIAN_CROATIAN_SERBIAN_MEMBER);
+      roleName = "Bosnian/Croatian/Serbian Member (default)";
     }
 
     if (memberRole && !member.roles.cache.has(memberRole.id)) {
